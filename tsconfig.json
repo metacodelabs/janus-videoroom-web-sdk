@@ -1,0 +1,27 @@
+{
+    "include": ["src/**/*.ts", "src/**/*.tsx"],
+    "exclude": ["node_modules", "dist", "**/*.test.ts"],
+    "compilerOptions": {
+        "target": "esnext",
+        "module": "esnext",
+        "lib": ["esnext", "dom"],
+        "types": ["node", "jest"],
+        "allowJs": false,
+        "declaration": true,
+        "declarationDir": "types",
+        "sourceMap": true,
+        "outDir": "dist",
+        "rootDir": "src",
+        "baseUrl": "src",
+        "removeComments": false,
+        "strict": true,
+        "noUnusedLocals": true,
+        "useDefineForClassFields": false,
+        "moduleResolution": "node",
+        "allowSyntheticDefaultImports": true,
+        "esModuleInterop": true,
+        "resolveJsonModule": true,
+        "skipLibCheck": true,
+        "forceConsistentCasingInFileNames": true
+    }
+}

@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+<body>
+
+<h2>Janus VideoRoom SDK - DEMO</h2>
+
+<div>
+    <button id="join">Join</button>
+    <button id="leave">Leave</button>
+</div>
+
+<h5>Local Video</h5>
+<div id="local-video" style="width: 240px; height: 180px;"></div>
+
+<h5>Remote Videos</h5>
+<div id="remote-videos"></div>
+
+    <script type="module">
+        import JanusSDK from '../dist/index.js';
+        const client = JanusSDK.createClient({codec: "h264"});
+
+        const config = {
+            server: "//live-dev.edusoho.cn/server-ws/106.14.89.212:8188/",
+            token: "1649593639,janus,janus.plugin.videoroom:9iV9PmwHngijLJ9ZllIpiTNJ/BM=",
+            adminKey: "hw2cxiuya25cf",
+            roomId: 1000,
+            userId: 1,
+        }
+
+        document.getElementById("join").addEventListener("click", async () => {
+            const stream = await navigator.mediaDevices.getUserMedia({
+                video: {
+                    width: {ideal: 480},
+                    height: {ideal: 360},
+                    frameRate: 20,
+                },
+                audio: {
+                    echoCancellation: true,
+                    noiseSuppression: true,
+                    sampleRate: 48000,
+                }
+            });
+
+            console.log(stream.getVideoTracks());
+
+            const videoTrack = JanusSDK.createLocalVideoTrack(stream.getVideoTracks()[0], {
+                bitrate: 400,
+            });
+
+            const audioTrack = JanusSDK.createLocalAudioTrack(stream.getAudioTracks()[0], {
+                bitrate: 64,
+            });
+
+            videoTrack.play("local-video");
+
+            await client.connect(config.server, config.token, config.adminKey);
+
+            const exists = await client.exists(config.roomId);
+            if (!exists) {
+                await client.create(config.roomId);
+            }
+
+            await client.join(config.roomId, config.userId);
+
+            await client.publish([videoTrack, audioTrack]);
+        });
+
+        document.getElementById("leave").addEventListener("click", async () => {
+            await client.unpublish();
+        });
+
+      </script>
+
+</body>
+</html>
