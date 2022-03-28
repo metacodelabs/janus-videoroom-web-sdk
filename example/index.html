@@ -11,7 +11,16 @@
 <h2>Janus VideoRoom SDK - DEMO</h2>
 
 <div>
+    <select id="users">
+        <option value="1">user 1</option>
+        <option value="2">user 2</option>
+        <option value="3">user 3</option>
+        <option value="4">user 4</option>
+        <option value="5">user 5</option>
+        <option value="6">user 6</option>
+    </select>
     <button id="join">Join</button>
+    |
     <button id="leave">Leave</button>
 </div>
 
@@ -22,18 +31,23 @@
 <div id="remote-videos"></div>
 
     <script type="module">
-        import JanusSDK from '../dist/index.js';
-        const client = JanusSDK.createClient({codec: "h264"});
-
         const config = {
             server: "//live-dev.edusoho.cn/server-ws/106.14.89.212:8188/",
             token: "1649593639,janus,janus.plugin.videoroom:9iV9PmwHngijLJ9ZllIpiTNJ/BM=",
             adminKey: "hw2cxiuya25cf",
             roomId: 1000,
-            userId: 1,
         }
 
+        import JanusSDK from '../dist/index.js';
+        const client = JanusSDK.createClient({codec: "h264"});
+
+        client.on("user-published", (remoteUserId, remoteTrack) => {
+            console.log("@user-published", remoteUserId, remoteTrack);
+        });
+
         document.getElementById("join").addEventListener("click", async () => {
+            const userId = parseInt(document.getElementById("users").value);
+
             const stream = await navigator.mediaDevices.getUserMedia({
                 video: {
                     width: {ideal: 480},
@@ -66,7 +80,7 @@
                 await client.create(config.roomId);
             }
 
-            await client.join(config.roomId, config.userId);
+            await client.join(config.roomId, userId);
 
             await client.publish([videoTrack, audioTrack]);
         });

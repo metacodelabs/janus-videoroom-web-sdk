@@ -3,7 +3,7 @@ import {JanusID} from "./index";
 import {Logger} from "ts-log";
 import {timeout} from "promise-timeout";
 import {randomString} from "./utils";
-import {LocalTrack, RemoteAudioTrack, RemoteVideoTrack} from "./track";
+import {LocalTrack, RemoteAudioTrack, RemoteTrack, RemoteVideoTrack} from "./track";
 
 export default class SignalClient {
 
@@ -57,7 +57,7 @@ export default class SignalClient {
 
     public onUpdated?: (jsep: any) => void;
 
-    public onPublished?: (remoteUserId: JanusID, remoteTrack: RemoteVideoTrack | RemoteAudioTrack) => void;
+    public onPublished?: (remoteUserId: JanusID, remoteTrack: RemoteTrack) => void;
 
     constructor(log: Logger = console) {
         this.log = log;

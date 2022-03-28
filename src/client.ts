@@ -3,7 +3,7 @@ import { EventEmitter } from 'events';
 import type TypedEventEmitter from 'typed-emitter';
 import SignalClient from "./signal";
 import {JanusID} from "./index";
-import {LocalTrack, RemoteAudioTrack, RemoteVideoTrack} from "./track";
+import {LocalTrack, RemoteAudioTrack, RemoteTrack, RemoteVideoTrack} from "./track";
 
 export default class JanusClient extends (EventEmitter as new () => TypedEventEmitter<JanusClientCallbacks>) {
 
@@ -33,7 +33,7 @@ export default class JanusClient extends (EventEmitter as new () => TypedEventEm
 
     public async join(roomId: JanusID, userId: JanusID): Promise<void> {
         this.signal.onPublished = (remoteUserId: JanusID, remoteTrack: RemoteVideoTrack | RemoteAudioTrack): void => {
-            console.log(remoteUserId, remoteTrack);
+            this.emit("user-published", remoteUserId, remoteTrack);
         };
 
         this.signal.onLeave = (userId: JanusID): void => {
@@ -97,5 +97,5 @@ export interface ClientConfig {
 }
 
 export type JanusClientCallbacks = {
-    //
+    "user-published": (remoteUserId: JanusID, remoteTrack: RemoteTrack) => Promise<void>,
 }
