@@ -3,7 +3,8 @@ import {JanusID} from "./index";
 import {Logger} from "ts-log";
 import {timeout} from "promise-timeout";
 import {randomString} from "./utils";
-import {LocalTrack, RemoteAudioTrack, RemoteTrack, RemoteVideoTrack} from "./track";
+import {LocalTrack, RemoteAudioTrack, RemoteTrack, RemoteVideoTrack, TrackMidMap} from "./track";
+import PromiseQueue from 'promise-queue';
 
 export default class SignalClient {
 
@@ -337,6 +338,93 @@ export default class SignalClient {
         }, "publisher", true);
     }
 
+    public async joinSubscriber(userId: JanusID, track: RemoteTrack): Promise<Subscription> {
+        const body = {
+            request: 'join',
+            room: this.roomId,
+            ptype: 'subscriber',
+            private_id: this.userPrivateId,
+            // streams: streams,
+            streams: [{
+                feed: userId,
+                mid: track.mid,
+            }],
+        }
+
+        const joined = await this.request({
+            janus: "message",
+            body: body
+        }, "subscriber", true);
+
+        this.log.debug("janus subscriber joined", joined);
+
+        const subscription = {
+            jsep: joined.jsep as Jsep,
+            tracksMap: []
+        } as Subscription;
+
+        for (const s of joined.plugindata.data.streams) {
+            const map = {
+                type: s.type,
+                userId: s.feed_id,
+                tmpMid: s.feed_mid,
+                formalMid: s.mid,
+            } as TrackMidMap;
+            subscription.tracksMap.push(map);
+        }
+
+        this.log.debug("janus subscriber subscription", subscription);
+
+        return subscription;
+    }
+
+    async subscribe(userId: JanusID, track: RemoteTrack): Promise<Subscription> {
+        const body = {
+            request: "subscribe",
+            streams: [{
+                feed: userId,
+                mid: track.mid,
+            }]
+        }
+
+        const subscribed = await this.request({
+            janus: "message",
+            body: body
+        }, "subscriber", true);
+
+        const subscription = {
+            jsep: subscribed.jsep as Jsep,
+            tracksMap: []
+        } as Subscription;
+
+        for (const s of subscribed.plugindata.data.streams) {
+            const map = {
+                type: s.type,
+                userId: s.feed_id,
+                tmpMid: s.feed_mid,
+                formalMid: s.mid,
+            } as TrackMidMap;
+            subscription.tracksMap.push(map);
+        }
+
+        this.log.debug("janus subscribed", subscription);
+
+        return subscription;
+    }
+
+    public async startSubscriber(jsep: RTCSessionDescriptionInit): Promise<void> {
+        await this.request({
+            janus: "message",
+            body: {
+                request: "start",
+                room: this.roomId
+            },
+            jsep: {
+                type: jsep.type,
+                sdp: jsep.sdp,
+            }
+        }, "subscriber", true);
+    }
 
     public async sendCandidate(candidate: RTCIceCandidate, handleType: HandleType): Promise<void> {
         await this.request({janus: "trickle", candidate: { completed: true }}, handleType);
@@ -414,3 +502,13 @@ export default class SignalClient {
 }
 
 type HandleType = "publisher" | "subscriber";
+
+export interface Jsep {
+    type: "answer" | "offer";
+    sdp: string;
+}
+
+export interface Subscription {
+    jsep: Jsep;
+    tracksMap: TrackMidMap[];
+}

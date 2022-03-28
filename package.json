@@ -6,12 +6,13 @@
   "license": "MIT",
   "scripts": {
     "build": "esbuild src/index.ts --bundle --minify --sourcemap=external --outfile=dist/index.js",
-    "build-dev": "esbuild src/index.ts --bundle --target=chrome72,safari14 --format=esm --outfile=dist/index.js",
+    "build-dev": "esbuild src/index.ts --bundle '--define:process.env.PROMISE_QUEUE_COVERAGE=false' --target=chrome72,safari14 --format=esm --outfile=dist/index.js",
     "test": "jest"
   },
   "devDependencies": {
     "@types/events": "^3.0.0",
     "@types/jest": "^27.4.1",
+    "@types/promise-queue": "^2.2.0",
     "@types/promise-timeout": "^1.3.0",
     "@typescript-eslint/eslint-plugin": "^5.16.0",
     "@typescript-eslint/parser": "^5.16.0",
@@ -25,6 +26,7 @@
   },
   "dependencies": {
     "events": "^3.3.0",
+    "promise-queue": "^2.2.5",
     "promise-timeout": "^1.3.0",
     "ts-log": "^2.2.4"
   }
