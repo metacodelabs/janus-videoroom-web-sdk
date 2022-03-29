@@ -4,7 +4,6 @@ import {Logger} from "ts-log";
 import {timeout} from "promise-timeout";
 import {randomString} from "./utils";
 import {LocalTrack, RemoteAudioTrack, RemoteTrack, RemoteVideoTrack, TrackMidMap} from "./track";
-import PromiseQueue from 'promise-queue';
 
 export default class SignalClient {
 

@@ -11,6 +11,13 @@
 <h2>Janus VideoRoom SDK - DEMO</h2>
 
 <div>
+    <span>server: <input id="cfg-server"></span>
+    <span>room id: <input id="cfg-room-id"></span>
+    <span>token: <input id="cfg-token"></span>
+    <span>admin key: <input id="cfg-admin-key"></span>
+</div>
+
+<div>
     <select id="users">
         <option value="1">user 1</option>
         <option value="2">user 2</option>
@@ -31,12 +38,14 @@
 <div id="remote-videos"></div>
 
     <script type="module">
-        const config = {
-            server: "//live-dev.edusoho.cn/server-ws/106.14.89.212:8188/",
-            token: "1649593639,janus,janus.plugin.videoroom:9iV9PmwHngijLJ9ZllIpiTNJ/BM=",
-            adminKey: "hw2cxiuya25cf",
-            roomId: 1000,
-        }
+        const query = new Proxy(new URLSearchParams(window.location.search), {
+            get: (searchParams, prop) => searchParams.get(prop),
+        });
+
+        document.getElementById("cfg-server").value = query.server;
+        document.getElementById("cfg-room-id").value = query.roomId;
+        document.getElementById("cfg-token").value = query.token;
+        document.getElementById("cfg-admin-key").value = query.adminKey;
 
         import JanusSDK from '../dist/index.js';
         const client = JanusSDK.createClient({codec: "h264"});
@@ -51,7 +60,13 @@
         });
 
         document.getElementById("join").addEventListener("click", async () => {
-            const userId = parseInt(document.getElementById("users").value);
+            const config = {
+                server: document.getElementById("cfg-server").value,
+                token: document.getElementById("cfg-token").value,
+                adminKey: document.getElementById("cfg-admin-key").value,
+                roomId: parseInt(document.getElementById("cfg-room-id").value),
+                userId: parseInt(document.getElementById("users").value)
+            }
 
             const stream = await navigator.mediaDevices.getUserMedia({
                 video: {
@@ -65,8 +80,6 @@
                     sampleRate: 48000,
                 }
             });
-
-            console.log(stream.getVideoTracks());
 
             const videoTrack = JanusSDK.createLocalVideoTrack(stream.getVideoTracks()[0], {
                 bitrate: 400,
@@ -85,7 +98,7 @@
                 await client.create(config.roomId);
             }
 
-            await client.join(config.roomId, userId);
+            await client.join(config.roomId, config.userId);
 
             await client.publish([videoTrack, audioTrack]);
         });
