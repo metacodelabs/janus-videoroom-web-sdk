@@ -77,6 +77,7 @@ export default class SignalClient {
             ws.onopen = async () => {
                 this.ws = ws;
                 await this.createSession();
+                this.isConnected = true;
                 this.startKeepAliveTimer();
                 resolve();
             }
@@ -162,13 +163,13 @@ export default class SignalClient {
     private startKeepAliveTimer(): void {
         this.stopKeepAliveTimer();
         this.keepAliveTimerId = setInterval(async () => {
+
             if (!this.ws || !this.isConnected) {
                 return ;
             }
 
             const request = { janus: "keepalive" };
             await this.request(request);
-
 
         }, this.KEEP_ALIVE_PERIOD);
     }
