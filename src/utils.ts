@@ -20,7 +20,7 @@ export function normalizeWebSocketUrl(url: string): string {
     }
 
     if (url.startsWith("//")) {
-        return (window.location.protocol === "https" ? "wss:" : "ws:") + url;
+        return (window.location.protocol === "https:" ? "wss:" : "ws:") + url;
     }
 
     return url;
