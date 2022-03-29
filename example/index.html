@@ -75,6 +75,7 @@
         <div class="user-name">user 6</div>
     </div>
 </div>
+<div id="audios" style="display: none;"></div>
 
     <script type="module">
         const query = new Proxy(new URLSearchParams(window.location.search), {
@@ -97,6 +98,9 @@
             console.log("subscribed track", track);
             if (remoteTrack.isVideo()) {
                 remoteTrack.play(`video-${remoteUserId}`);
+            }
+            if (remoteTrack.isAudio()) {
+                remoteTrack.play("audios");
             }
         });
 

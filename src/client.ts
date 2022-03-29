@@ -1,7 +1,7 @@
 import {VIDEO_CODECS} from "./types";
 import { EventEmitter } from 'events';
 import type TypedEventEmitter from 'typed-emitter';
-import SignalClient from "./signal";
+import SignalClient, {Subscription} from "./signal";
 import {JanusID} from "./index";
 import {LocalTrack, RemoteAudioTrack, RemoteTrack, RemoteTrackMap, RemoteVideoTrack} from "./track";
 import PromiseQueue from "promise-queue";
@@ -115,12 +115,14 @@ export default class JanusClient extends (EventEmitter as new () => TypedEventEm
     }
 
     async doSubscribe(userId: JanusID, track: RemoteTrack): Promise<void> {
+        let subscription: Subscription;
         if (!this.subscriberPc) {
-            await this.createSubscriber(userId, track);
-            return ;
+            await this.signal.attach("subscriber");
+            this.subscriberPc = this.createSubscriberPC();
+            subscription = await this.signal.joinSubscriber(userId, track);
+        } else {
+            subscription = await this.signal.subscribe(userId, track);
         }
-
-        const pc = this.subscriberPc;
 
         const p = new Promise<void>((resolve) => {
             this.innerEmitter.once("__ontrack", (mediaTrack: MediaStreamTrack) => {
@@ -130,10 +132,10 @@ export default class JanusClient extends (EventEmitter as new () => TypedEventEm
             });
         });
 
-        const subscription = await this.signal.subscribe(userId, track);
         this.trackMap.update(subscription.tracksMap);
         this.trackMap.setTrack(userId, track.mid, track);
 
+        const pc = this.subscriberPc;
         await pc.setRemoteDescription(subscription.jsep);
         const transceivers = pc.getTransceivers();
         for (const t of transceivers) {
@@ -148,22 +150,7 @@ export default class JanusClient extends (EventEmitter as new () => TypedEventEm
         return p;
     }
 
-    private async createSubscriber(userId: JanusID, track: RemoteTrack): Promise<void> {
-        this.log.warn("create subscriber");
-
-        const p = new Promise<void>((resolve) => {
-            this.innerEmitter.once("__ontrack", (mediaTrack: MediaStreamTrack) => {
-                this.log.warn("__ontrack", mediaTrack);
-                track.setMediaStreamTrack(mediaTrack.clone());
-                resolve();
-            });
-        });
-
-        await this.signal.attach("subscriber");
-
-        const subscription = await this.signal.joinSubscriber(userId, track);
-        this.trackMap.update(subscription.tracksMap);
-        this.trackMap.setTrack(userId, track.mid, track);
+    private createSubscriberPC(): RTCPeerConnection {
 
         const pc = new RTCPeerConnection({
             iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
@@ -219,18 +206,7 @@ export default class JanusClient extends (EventEmitter as new () => TypedEventEm
             this.innerEmitter.emit("__ontrack", event.track);
         }
 
-        await pc.setRemoteDescription(subscription.jsep);
-        const transceivers = pc.getTransceivers();
-        for (const t of transceivers) {
-            t.direction = "recvonly";
-        }
-
-        const answer = await pc.createAnswer();
-        await pc.setLocalDescription(answer);
-
-        await this.signal.startSubscriber(answer);
-
-        return p;
+        return pc;
     }
 
     public async leave(): Promise<void> {
