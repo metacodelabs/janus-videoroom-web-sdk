@@ -5,10 +5,27 @@
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Document</title>
+    <style>
+        .users {
+            display: flex;
+            flex-wrap: wrap;
+        }
+
+        .user-video {
+            width: 240px;
+            height: 180px;
+            border: 1px solid #ccc;
+            background: #eee;
+        }
+        .user-name {
+            text-align: center;
+        }
+
+    </style>
 </head>
 <body>
 
-<h2>Janus VideoRoom SDK - DEMO</h2>
+<h2>Janus VideoRoom SDK - Example</h2>
 
 <div>
     <span>server: <input id="cfg-server"></span>
@@ -31,11 +48,33 @@
     <button id="leave">Leave</button>
 </div>
 
-<h5>Local Video</h5>
-<div id="local-video" style="width: 240px; height: 180px;"></div>
-
-<h5>Remote Videos</h5>
-<div id="remote-videos"></div>
+<h5>Users</h5>
+<div class="users">
+    <div class="user">
+        <div id="video-1" class="user-video"></div>
+        <div class="user-name">user 1</div>
+    </div>
+    <div class="user">
+        <div id="video-2" class="user-video"></div>
+        <div class="user-name">user 2</div>
+    </div>
+    <div class="user">
+        <div id="video-3" class="user-video"></div>
+        <div class="user-name">user 3</div>
+    </div>
+    <div class="user">
+        <div id="video-4" class="user-video"></div>
+        <div class="user-name">user 4</div>
+    </div>
+    <div class="user">
+        <div id="video-5" class="user-video"></div>
+        <div class="user-name">user 5</div>
+    </div>
+    <div class="user">
+        <div id="video-6" class="user-video"></div>
+        <div class="user-name">user 6</div>
+    </div>
+</div>
 
     <script type="module">
         const query = new Proxy(new URLSearchParams(window.location.search), {
@@ -55,8 +94,10 @@
 
             await client.subscribe(remoteUserId, remoteTrack);
             const track = remoteTrack.getMediaStreamTrack();
-
             console.log("subscribed track", track);
+            if (remoteTrack.isVideo()) {
+                remoteTrack.play(`video-${remoteUserId}`);
+            }
         });
 
         document.getElementById("join").addEventListener("click", async () => {
@@ -89,7 +130,7 @@
                 bitrate: 64,
             });
 
-            videoTrack.play("local-video");
+            videoTrack.play(`video-${config.userId}`);
 
             await client.connect(config.server, config.token, config.adminKey);
 
