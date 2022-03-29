@@ -243,12 +243,14 @@ export default class JanusClient extends (EventEmitter as new () => TypedEventEm
         if (this.publisherPc) {
             this.publisherPc.oniceconnectionstatechange = null;
             this.publisherPc.onicecandidate = null;
+            this.publisherPc.ontrack = null;
             this.publisherPc = undefined;
         }
 
         if (this.subscriberPc) {
             this.subscriberPc.oniceconnectionstatechange = null;
             this.subscriberPc.onicecandidate = null;
+            this.subscriberPc.ontrack = null;
             this.subscriberPc = undefined;
         }
     }
