@@ -91,6 +91,18 @@ class JTrack {
         return !!this.mediaStreamTrack && this.mediaStreamTrack.kind === "audio";
     }
 
+    public getTrackKind(): "audio" | "video" | null {
+        if (this.isVideo()) {
+            return "video";
+        }
+
+        if (this.isAudio()) {
+            return "audio";
+        }
+
+        return null;
+    }
+
     public getMediaStreamTrack(): MediaStreamTrack {
         if (!this.mediaStreamTrack) {
             throw new Error("no media stream track");

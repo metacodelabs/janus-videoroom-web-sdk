@@ -1,9 +1,9 @@
 import {VIDEO_CODECS} from "./types";
-import { EventEmitter } from 'events';
+import {EventEmitter} from 'events';
 import type TypedEventEmitter from 'typed-emitter';
-import SignalClient, {Subscription} from "./signal";
+import SignalClient, {Jsep, Subscription} from "./signal";
 import {JanusID} from "./index";
-import {LocalTrack, RemoteAudioTrack, RemoteTrack, RemoteTrackMap, RemoteVideoTrack} from "./track";
+import {LocalTrack, RemoteTrack, RemoteTrackMap} from "./track";
 import PromiseQueue from "promise-queue";
 import {Logger} from "ts-log";
 
@@ -25,7 +25,7 @@ export default class JanusClient extends (EventEmitter as new () => TypedEventEm
 
     private innerEmitter: EventEmitter;
 
-    constructor(config: ClientConfig, log: Logger = console) {
+    constructor(log: Logger = console) {
         super();
         this.config = config;
         this.signal = new SignalClient();
@@ -33,7 +33,6 @@ export default class JanusClient extends (EventEmitter as new () => TypedEventEm
         this.trackMap = new RemoteTrackMap();
         this.innerEmitter = new EventEmitter();
         this.log = log;
-        console.log("ClientConfig", this.config);
     }
 
     public async connect(server: string, token?: string, adminKey?: string): Promise<void> {
@@ -50,16 +49,32 @@ export default class JanusClient extends (EventEmitter as new () => TypedEventEm
     }
 
     public async join(roomId: JanusID, userId: JanusID): Promise<void> {
-        this.signal.onPublished = (remoteUserId: JanusID, remoteTrack: RemoteVideoTrack | RemoteAudioTrack): void => {
+        this.signal.onPublished = (remoteUserId: JanusID, remoteTrack: RemoteTrack): void => {
+            this.log.info(`emit user-published event (uid: ${remoteUserId}, mid: ${remoteTrack.mid}, codec: ${remoteTrack.codec})`);
             this.emit("user-published", remoteUserId, remoteTrack);
-        };
-
-        this.signal.onLeave = (userId: JanusID): void => {
-            console.log("onLeave", userId);
         }
 
-        this.signal.onUpdated = (payload: {jsep: any}) => {
-            console.log("onUpdated", payload);
+        this.signal.onLeave = async (userId: JanusID): Promise<void> => {
+            await this.signal.unsubscribe(userId);
+            this.log.info(`emit user-left event (uid: ${userId})`);
+            this.emit("user-left", userId);
+        }
+
+        this.signal.onUpdated = async (jsep: Jsep): Promise<void> => {
+            this.log.debug("on updated", jsep);
+            const pc = this.subscriberPc;
+            if (!pc) {
+                throw new Error("no subscriber pc");
+            }
+            await pc.setRemoteDescription(jsep);
+            const transceivers = pc.getTransceivers();
+            for (const t of transceivers) {
+                t.direction = "recvonly";
+            }
+
+            const answer = await pc.createAnswer();
+            await pc.setLocalDescription(answer);
+            await this.signal.startSubscriber(answer);
         }
 
         await this.signal.joinPublisher(roomId, userId);
@@ -125,8 +140,8 @@ export default class JanusClient extends (EventEmitter as new () => TypedEventEm
         }
 
         const p = new Promise<void>((resolve) => {
-            this.innerEmitter.once("__ontrack", (mediaTrack: MediaStreamTrack) => {
-                this.log.warn("__ontrack", mediaTrack);
+            this.innerEmitter.once("track", (mediaTrack: MediaStreamTrack) => {
+                this.log.warn("track", mediaTrack);
                 track.setMediaStreamTrack(mediaTrack.clone());
                 resolve();
             });
@@ -202,8 +217,7 @@ export default class JanusClient extends (EventEmitter as new () => TypedEventEm
                 }
             }
 
-            // this.trackPool.putMediaTrack(event.transceiver.mid as string, event.track);
-            this.innerEmitter.emit("__ontrack", event.track);
+            this.innerEmitter.emit("track", event.track);
         }
 
         return pc;
@@ -226,7 +240,6 @@ export default class JanusClient extends (EventEmitter as new () => TypedEventEm
     }
 
     private handleTrackUnpublish(ev: Event) {
-        this.log.debug(`user unpublish from ${ev.type} event`);
         const transceivers = this.subscriberPc?.getTransceivers();
         if (transceivers) {
             const transceiver = transceivers.find(t => t.receiver.track === ev.target);
@@ -234,10 +247,10 @@ export default class JanusClient extends (EventEmitter as new () => TypedEventEm
                 const evTrack = this.trackMap.getTrack(transceiver.mid as string);
                 const evUser = this.trackMap.getUser(transceiver.mid as string);
                 if (evTrack && evUser) {
-                    this.log.debug("@user-unpublished", evUser, evTrack);
+                    this.log.info(`emit user-unpublished event (uid: ${evUser}, kind: ${evTrack.getTrackKind()})`);
                     this.emit("user-unpublished", evUser, evTrack);
                 } else {
-                    this.log.warn("user unpublish failed, remote track or user not found", evUser, evTrack);
+                    this.log.warn(`user unpublish failed, remote track or user not found`, evUser, evTrack);
                 }
             } else {
                 this.log.warn("user unpublish failed, not found mid");
@@ -250,11 +263,12 @@ export default class JanusClient extends (EventEmitter as new () => TypedEventEm
 
 export interface ClientConfig {
     codec: VIDEO_CODECS;
-    autoCreateRoom?: boolean;
 }
 
 export type JanusClientCallbacks = {
-    "user-published": (remoteUserId: JanusID, remoteTrack: RemoteTrack) => Promise<void>;
+    "user-published": (remoteUserId: JanusID, remoteTrack: RemoteTrack) => Promise<void> | void;
 
-    "user-unpublished": (remoteUserId: JanusID, remoteTrack: RemoteTrack) => Promise<void>;
+    "user-unpublished": (remoteUserId: JanusID, remoteTrack: RemoteTrack) => Promise<void> | void;
+
+    "user-left": (remoteUserId: JanusID) => Promise<void> | void;
 }

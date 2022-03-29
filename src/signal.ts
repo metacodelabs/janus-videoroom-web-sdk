@@ -55,7 +55,7 @@ export default class SignalClient {
 
     public onLeave?: (userId: JanusID) => void;
 
-    public onUpdated?: (jsep: any) => void;
+    public onUpdated?: (jsep: Jsep) => Promise<void>;
 
     public onPublished?: (remoteUserId: JanusID, remoteTrack: RemoteTrack) => void;
 
@@ -409,6 +409,18 @@ export default class SignalClient {
         this.log.debug("janus subscribed", subscription);
 
         return subscription;
+    }
+
+    public async unsubscribe(userId: JanusID): Promise<void> {
+        const body = {
+            request: "unsubscribe",
+            streams: [{ feed: userId}],
+        }
+
+        await this.request({
+            janus: "message",
+            body: body
+        }, "subscriber", true);
     }
 
     public async startSubscriber(jsep: RTCSessionDescriptionInit): Promise<void> {
