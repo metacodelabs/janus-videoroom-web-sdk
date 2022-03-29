@@ -74,6 +74,8 @@ class JanusTrack {
     public stop(): void {
         if (this.mediaStreamTrack) {
             this.mediaStreamTrack.onended = null;
+            this.mediaStreamTrack.onmute = null;
+            this.mediaStreamTrack.onunmute = null;
             this.mediaStreamTrack.stop();
         }
 

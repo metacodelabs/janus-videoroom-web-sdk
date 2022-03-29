@@ -153,9 +153,6 @@
         });
 
         document.getElementById("leave").addEventListener("click", async () => {
-            await client.unpublish();
-            await client.leave();
-
             if (videoTrack) {
                 videoTrack.stop();
                 videoTrack = undefined;
@@ -165,6 +162,8 @@
                 audioTrack.stop();
                 audioTrack = undefined;
             }
+
+            await client.leave();
         });
 
       </script>

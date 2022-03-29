@@ -260,19 +260,44 @@ export default class JanusClient extends (EventEmitter as new () => TypedEventEm
     }
 
     public async leave(): Promise<void> {
+
+        this.remoteUsers.forEach((user: RemoteUserSubscribed, userId: JanusID) => {
+            if (user.audioTrack) {
+                user.audioTrack.stop();
+                user.audioTrack = undefined;
+            }
+
+            if (user.videoTrack) {
+                user.videoTrack.stop();
+                user.videoTrack = undefined;
+            }
+        });
+        this.remoteUsers.clear();
+
         await this.signal.destroy();
 
         if (this.publisherPc) {
             this.publisherPc.oniceconnectionstatechange = null;
             this.publisherPc.onicecandidate = null;
             this.publisherPc.ontrack = null;
+            this.publisherPc.close();
             this.publisherPc = undefined;
         }
 
         if (this.subscriberPc) {
+            this.subscriberPc.getTransceivers().forEach((t) => {
+                if (t.receiver && t.receiver.track) {
+                    const tk = t.receiver.track;
+                    tk.onmute = null;
+                    tk.onunmute = null;
+                    tk.onended = null;
+                    tk.stop();
+                }
+            });
             this.subscriberPc.oniceconnectionstatechange = null;
             this.subscriberPc.onicecandidate = null;
             this.subscriberPc.ontrack = null;
+            this.subscriberPc.close();
             this.subscriberPc = undefined;
         }
     }
