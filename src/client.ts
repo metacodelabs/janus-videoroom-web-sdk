@@ -3,12 +3,14 @@ import {EventEmitter} from 'events';
 import type TypedEventEmitter from 'typed-emitter';
 import SignalClient, {Jsep, Subscription} from "./signal";
 import {JanusID} from "./index";
-import {LocalTrack, RemoteTrack, RemoteTrackMap} from "./track";
+import {LocalTrack, RemoteAudioTrack, RemoteTrack, RemoteTrackMap, RemoteVideoTrack} from "./track";
 import PromiseQueue from "promise-queue";
 import {Logger} from "ts-log";
 import {ErrorCode, JanusError} from "./errors";
 
 export default class JanusClient extends (EventEmitter as new () => TypedEventEmitter<JanusClientCallbacks>) {
+
+    public readonly remoteUsers: Map<JanusID, RemoteUserSubscribed>;
 
     private readonly signal: SignalClient;
 
@@ -30,6 +32,7 @@ export default class JanusClient extends (EventEmitter as new () => TypedEventEm
 
     constructor(config: ClientConfig, log: Logger = console) {
         super();
+        this.remoteUsers = new Map();
         this.config = config;
         this.signal = new SignalClient();
         this.subscribeQueue = new PromiseQueue(1);
@@ -156,7 +159,26 @@ export default class JanusClient extends (EventEmitter as new () => TypedEventEm
         const p = new Promise<void>((resolve) => {
             this.innerEmitter.once("track", (mediaTrack: MediaStreamTrack) => {
                 track.setMediaStreamTrack(mediaTrack.clone());
-                this.log.info(`subscribed (user id: ${userId}, ${track.toString()})`);
+
+                let subscribedUser = this.remoteUsers.get(userId);
+                if (!subscribedUser) {
+                    subscribedUser = new RemoteUserSubscribed(userId);
+                    this.remoteUsers.set(userId, subscribedUser);
+                }
+
+                if (track instanceof RemoteVideoTrack) {
+                    if (subscribedUser.videoTrack) {
+                        throw new JanusError(ErrorCode.INVALID_OPERATION, `user video track is already subscribed (uid: ${userId})`);
+                    }
+                    subscribedUser.videoTrack = track;
+                } else if (track instanceof RemoteAudioTrack) {
+                    if (subscribedUser.audioTrack) {
+                        throw new JanusError(ErrorCode.INVALID_OPERATION, `user audio track is already subscribed (uid: ${userId})`);
+                    }
+                    subscribedUser.audioTrack = track;
+                }
+
+                this.log.info(`track subscribed (uid: ${userId}, ${track.toString()})`);
                 resolve();
             });
         });
@@ -264,6 +286,21 @@ export default class JanusClient extends (EventEmitter as new () => TypedEventEm
                 const evUser = this.trackMap.getUser(transceiver.mid as string);
                 if (evTrack && evUser) {
                     this.log.info(`emit user-unpublished event (uid: ${evUser}, kind: ${evTrack.getTrackKind()})`);
+                    const subscribedUser = this.remoteUsers.get(evUser);
+                    if (subscribedUser) {
+                        if (evTrack instanceof RemoteAudioTrack) {
+                            subscribedUser.audioTrack?.stop();
+                            subscribedUser.audioTrack = undefined;
+                        } else if (evTrack instanceof RemoteVideoTrack) {
+                            subscribedUser.videoTrack?.stop();
+                            subscribedUser.videoTrack = undefined;
+                        }
+
+                        if (!subscribedUser.audioTrack && !subscribedUser.videoTrack) {
+                            this.remoteUsers.delete(evUser);
+                        }
+                    }
+
                     this.emit("user-unpublished", evUser, evTrack);
                 } else {
                     this.log.warn(`user unpublish failed, remote track or user not found`, evUser, evTrack);
@@ -287,4 +324,17 @@ export type JanusClientCallbacks = {
     "user-unpublished": (remoteUserId: JanusID, remoteTrack: RemoteTrack) => Promise<void> | void;
 
     "user-left": (remoteUserId: JanusID) => Promise<void> | void;
+}
+
+export class RemoteUserSubscribed {
+
+    public readonly userId: JanusID;
+
+    public audioTrack?: RemoteAudioTrack;
+
+    public videoTrack?: RemoteVideoTrack;
+
+    constructor(userId: JanusID) {
+        this.userId = userId;
+    }
 }

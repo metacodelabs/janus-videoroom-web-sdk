@@ -98,11 +98,15 @@
             if (remoteTrack.isAudio()) {
                 remoteTrack.play("audios");
             }
+            console.error("client.remoteUsers", client.remoteUsers);
         });
 
         client.on("user-unpublished", async(remoteUserId, remoteTrack) => {
-            remoteTrack.stop();
+            console.error("client.remoteUsers", client.remoteUsers);
         });
+
+        let videoTrack;
+        let audioTrack;
 
         document.getElementById("join").addEventListener("click", async () => {
             const config = {
@@ -126,11 +130,11 @@
                 }
             });
 
-            const videoTrack = JanusSDK.createLocalVideoTrack(stream.getVideoTracks()[0], {
+            videoTrack = JanusSDK.createLocalVideoTrack(stream.getVideoTracks()[0], {
                 bitrate: 400,
             });
 
-            const audioTrack = JanusSDK.createLocalAudioTrack(stream.getAudioTracks()[0], {
+            audioTrack = JanusSDK.createLocalAudioTrack(stream.getAudioTracks()[0], {
                 bitrate: 64,
             });
 
@@ -151,6 +155,16 @@
         document.getElementById("leave").addEventListener("click", async () => {
             await client.unpublish();
             await client.leave();
+
+            if (videoTrack) {
+                videoTrack.stop();
+                videoTrack = undefined;
+            }
+
+            if (audioTrack) {
+                audioTrack.stop();
+                audioTrack = undefined;
+            }
         });
 
       </script>
