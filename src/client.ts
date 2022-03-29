@@ -12,9 +12,9 @@ export default class JanusClient extends (EventEmitter as new () => TypedEventEm
 
     public readonly remoteUsers: Map<JanusID, RemoteUserSubscribed>;
 
-    private readonly signal: SignalClient;
-
     private readonly config: ClientConfig;
+
+    private signal: SignalClient;
 
     private subscribeQueue: PromiseQueue;
 
@@ -28,17 +28,19 @@ export default class JanusClient extends (EventEmitter as new () => TypedEventEm
 
     private innerEmitter: EventEmitter;
 
-    private joined = false;
+    private joined: boolean;
 
     constructor(config: ClientConfig, log: Logger = console) {
         super();
-        this.remoteUsers = new Map();
         this.config = config;
+        this.log = log;
+
+        this.remoteUsers = new Map();
         this.signal = new SignalClient();
         this.subscribeQueue = new PromiseQueue(1);
         this.trackMap = new RemoteTrackMap();
         this.innerEmitter = new EventEmitter();
-        this.log = log;
+        this.joined = false;
     }
 
     public async connect(server: string, token?: string, adminKey?: string): Promise<void> {
@@ -260,6 +262,7 @@ export default class JanusClient extends (EventEmitter as new () => TypedEventEm
     }
 
     public async leave(): Promise<void> {
+        await this.signal.destroy();
 
         this.remoteUsers.forEach((user: RemoteUserSubscribed, userId: JanusID) => {
             if (user.audioTrack) {
@@ -273,8 +276,6 @@ export default class JanusClient extends (EventEmitter as new () => TypedEventEm
             }
         });
         this.remoteUsers.clear();
-
-        await this.signal.destroy();
 
         if (this.publisherPc) {
             this.publisherPc.oniceconnectionstatechange = null;
@@ -300,6 +301,11 @@ export default class JanusClient extends (EventEmitter as new () => TypedEventEm
             this.subscriberPc.close();
             this.subscriberPc = undefined;
         }
+
+        this.innerEmitter.removeAllListeners();
+        this.trackMap.clear();
+        this.subscribeQueue = new PromiseQueue(1);
+        this.joined = false;
     }
 
     private handleTrackUnpublish(ev: Event) {

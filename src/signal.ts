@@ -18,7 +18,7 @@ export default class SignalClient {
 
     private ws?: WebSocket;
 
-    private isConnected = false;
+    private isConnected: boolean;
 
     private sessionId?: number;
 
@@ -62,6 +62,7 @@ export default class SignalClient {
 
     constructor(log: Logger = console) {
         this.log = log;
+        this.isConnected = false;
         this.transactionEmitter = new EventEmitter();
         this.opaqueId = randomString(16);
     }
@@ -455,6 +456,19 @@ export default class SignalClient {
 
         this.ws?.close();
         this.ws = undefined;
+
+        this.server = undefined;
+        this.roomId = undefined;
+        this.token = undefined;
+        this.adminKey = undefined;
+        this.isConnected = false;
+        this.sessionId = undefined;
+        this.publisherId = undefined;
+        this.subscriberId = undefined;
+        this.userId = undefined;
+        this.userPrivateId = undefined;
+        this.ignoreAckRequests.clear();
+        this.transactionEmitter.removeAllListeners();
     }
 
     private async createSession(): Promise<void> {

@@ -248,4 +248,9 @@ export class RemoteTrackMap {
 
         return item.userId;
     }
+
+    public clear(): void {
+        this.map = [];
+        this.tracks.clear();
+    }
 }
