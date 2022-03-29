@@ -39,8 +39,10 @@ export default class JanusClient extends (EventEmitter as new () => TypedEventEm
     }
 
     public async connect(server: string, token?: string, adminKey?: string): Promise<void> {
+        this.log.info(`connect signal server: ${server}`);
         await this.signal.connect(server, token, adminKey);
         await this.signal.attach("publisher");
+        this.log.info("signal server connected");
     }
 
     public async exists(roomId: JanusID): Promise<boolean> {
@@ -56,6 +58,8 @@ export default class JanusClient extends (EventEmitter as new () => TypedEventEm
             throw new JanusError(ErrorCode.INVALID_OPERATION, "Already joined");
         }
         this.joined = true;
+
+        this.log.info(`join room (room id: ${roomId}, user id: ${userId})`);
 
         this.signal.onPublished = (remoteUserId: JanusID, remoteTrack: RemoteTrack): void => {
             this.log.info(`emit user-published event (uid: ${remoteUserId}, mid: ${remoteTrack.mid}, codec: ${remoteTrack.codec})`);
@@ -86,6 +90,8 @@ export default class JanusClient extends (EventEmitter as new () => TypedEventEm
         }
 
         await this.signal.joinPublisher(roomId, userId);
+
+        this.log.info("room joined");
     }
 
     public async publish(tracks: LocalTrack | LocalTrack[]): Promise<void> {
@@ -93,22 +99,23 @@ export default class JanusClient extends (EventEmitter as new () => TypedEventEm
             tracks = [tracks];
         }
 
+        this.log.info(`publish tracks [${tracks.toString()}]`);
+
         const pc = new RTCPeerConnection({
             iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
         });
         this.publisherPc = pc;
 
         pc.oniceconnectionstatechange = () => {
-            console.debug("ice state change", {state: pc.iceConnectionState});
+            this.log.info(`publisher pc ice connection state changed: ${pc.iceConnectionState}`);
         }
 
         pc.onicecandidate = (event: RTCPeerConnectionIceEvent) => {
             if (event.candidate) {
                 this.signal.sendCandidate(event.candidate, "publisher");
-                // this.logger.debug("ice candidate sent", event.candidate);
             } else {
                 this.signal.sendCandidateCompleted("publisher");
-                console.debug("ice done");
+                this.log.debug("publisher pc send candidate completed");
             }
         }
 
@@ -123,7 +130,6 @@ export default class JanusClient extends (EventEmitter as new () => TypedEventEm
 
         const offer = await pc.createOffer();
         await pc.setLocalDescription(offer);
-
         const jsep = await this.signal.configureMedia(offer, tracks);
         await pc.setRemoteDescription(jsep);
     }

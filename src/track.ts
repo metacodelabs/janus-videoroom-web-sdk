@@ -1,7 +1,7 @@
 import {JanusID} from "./index";
 import {Logger} from "ts-log";
 
-class JTrack {
+class JanusTrack {
 
     protected mediaStreamTrack?: MediaStreamTrack;
 
@@ -113,9 +113,17 @@ class JTrack {
     public setMediaStreamTrack(track: MediaStreamTrack) {
         this.mediaStreamTrack = track;
     }
+
+    public toString(): string {
+        if (!this.mediaStreamTrack) {
+            return "JanusTrack(None)";
+        }
+
+        return `Track(${this.mediaStreamTrack.kind}, ${this.mediaStreamTrack.id}, ${this.mediaStreamTrack.label})`;
+    }
 }
 
-export abstract class LocalTrack extends JTrack {
+export abstract class LocalTrack extends JanusTrack {
     protected constructor(mediaStreamTrack: MediaStreamTrack, config?: LocalTrackConfig) {
         super();
         this.mediaStreamTrack = mediaStreamTrack;
@@ -141,7 +149,7 @@ export class LocalAudioTrack extends LocalTrack {
     }
 }
 
-export abstract class RemoteTrack extends JTrack {
+export abstract class RemoteTrack extends JanusTrack {
 
     public readonly mid: string;
 

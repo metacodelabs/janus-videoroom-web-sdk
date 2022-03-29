@@ -2,7 +2,7 @@ import {EventEmitter} from 'events';
 import {JanusID} from "./index";
 import {Logger} from "ts-log";
 import {timeout} from "promise-timeout";
-import {randomString} from "./utils";
+import {normalizeWebSocketUrl, randomString} from "./utils";
 import {LocalTrack, RemoteAudioTrack, RemoteTrack, RemoteVideoTrack, TrackMidMap} from "./track";
 import {ErrorCode, JanusError} from "./errors";
 
@@ -73,9 +73,12 @@ export default class SignalClient {
 
         return new Promise((resolve, reject) => {
             this.ws = undefined;
-            const ws = new WebSocket("wss:" + this.server, "janus-protocol");
+            const serverUrl = normalizeWebSocketUrl(this.server as string);
+
+            const ws = new WebSocket(serverUrl, "janus-protocol");
 
             ws.onopen = async () => {
+                this.log.debug("signal server opened.");
                 this.ws = ws;
                 await this.createSession();
                 this.isConnected = true;
@@ -88,7 +91,8 @@ export default class SignalClient {
                     reject(new JanusError(ErrorCode.WS_ERR, "signal server was not reachable"));
                     return ;
                 }
-                console.log("signal server error", ev);
+
+                this.log.error("signal server error", ev);
             }
 
             ws.onmessage = async (ev: MessageEvent) => {
@@ -99,7 +103,7 @@ export default class SignalClient {
                 if (this.ws != ws || !this.isConnected) {
                     return ;
                 }
-                console.log("signal server connection closed", ev.reason);
+                this.log.info("signal server connection closed", ev.reason);
                 this.isConnected = false;
                 this.stopKeepAliveTimer();
                 if (this.onClose) {
@@ -119,11 +123,7 @@ export default class SignalClient {
             }
         }, "publisher");
 
-        const exists = resp.plugindata.data.exists;
-        if (exists) {
-            this.log.debug('janus room already exists');
-        }
-        return exists;
+        return !!(resp.plugindata.data.exists);
     }
 
     async createRoom(roomId: JanusID): Promise<void> {
@@ -259,12 +259,13 @@ export default class SignalClient {
 
     public async attach(type: "publisher" | "subscriber" = "publisher"): Promise<void> {
         const attached = await this.request({janus: "attach", plugin: "janus.plugin.videoroom", opaqueId: this.opaqueId});
+        const handleId = attached.data.id;
         if (type === "publisher") {
-            this.publisherId = attached.data.id;
+            this.publisherId = handleId;
         } else {
-            this.subscriberId = attached.data.id;
-            console.log("this.subscriberId", this.subscriberId);
+            this.subscriberId = handleId;
         }
+        this.log.debug(`video room plugin attached (${type}, id: ${handleId})`);
     }
 
     public async joinPublisher(roomId: JanusID, userId: JanusID): Promise<void> {
@@ -283,10 +284,6 @@ export default class SignalClient {
         this.roomId = roomId;
         this.userId = userId;
         this.userPrivateId = joined.plugindata.data.private_id;
-
-        console.log("this.roomId", this.roomId);
-        console.log("this.userId", this.userId);
-        console.log("this.userPrivateId", this.userPrivateId);
 
         if (joined.plugindata.data.publishers) {
             this.emitUserPublished(joined.plugindata.data.publishers);
@@ -463,6 +460,7 @@ export default class SignalClient {
     private async createSession(): Promise<void> {
         const created = await this.request({janus: "create"});
         this.sessionId = created.data.id as number;
+        this.log.debug(`session created (id: ${this.sessionId})`);
     }
 
     private async request(params: any, handleType?: HandleType, ignoreAck = false, timeoutMs = 5000): Promise<any> {

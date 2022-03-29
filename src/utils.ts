@@ -1,3 +1,4 @@
+import {ErrorCode, JanusError} from "./errors";
 
 export function randomString(len: number): string {
     const charSet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
@@ -9,6 +10,18 @@ export function randomString(len: number): string {
     return randomString;
 }
 
-export function normalServerAddress(address: string): string {
-    return address;
+export function normalizeWebSocketUrl(url: string): string {
+    if (!url) {
+        throw new JanusError(ErrorCode.INVALID_PARAMS, "websocket url invalid");
+    }
+
+    if (!(url.startsWith("//") || url.startsWith("ws://") || url.startsWith("wss://"))) {
+        throw new JanusError(ErrorCode.INVALID_PARAMS, "websocket url invalid");
+    }
+
+    if (url.startsWith("//")) {
+        return (window.location.protocol === "https" ? "wss:" : "ws:") + url;
+    }
+
+    return url;
 }
