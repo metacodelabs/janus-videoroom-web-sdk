@@ -6,6 +6,7 @@ import {JanusID} from "./index";
 import {LocalTrack, RemoteTrack, RemoteTrackMap} from "./track";
 import PromiseQueue from "promise-queue";
 import {Logger} from "ts-log";
+import {ErrorCode, JanusError} from "./errors";
 
 export default class JanusClient extends (EventEmitter as new () => TypedEventEmitter<JanusClientCallbacks>) {
 
@@ -25,7 +26,9 @@ export default class JanusClient extends (EventEmitter as new () => TypedEventEm
 
     private innerEmitter: EventEmitter;
 
-    constructor(log: Logger = console) {
+    private joined = false;
+
+    constructor(config: ClientConfig, log: Logger = console) {
         super();
         this.config = config;
         this.signal = new SignalClient();
@@ -49,6 +52,11 @@ export default class JanusClient extends (EventEmitter as new () => TypedEventEm
     }
 
     public async join(roomId: JanusID, userId: JanusID): Promise<void> {
+        if (this.joined) {
+            throw new JanusError(ErrorCode.INVALID_OPERATION, "Already joined");
+        }
+        this.joined = true;
+
         this.signal.onPublished = (remoteUserId: JanusID, remoteTrack: RemoteTrack): void => {
             this.log.info(`emit user-published event (uid: ${remoteUserId}, mid: ${remoteTrack.mid}, codec: ${remoteTrack.codec})`);
             this.emit("user-published", remoteUserId, remoteTrack);
@@ -64,7 +72,7 @@ export default class JanusClient extends (EventEmitter as new () => TypedEventEm
             this.log.debug("on updated", jsep);
             const pc = this.subscriberPc;
             if (!pc) {
-                throw new Error("no subscriber pc");
+                throw new JanusError(ErrorCode.UNEXPECTED_ERROR, "no subscriber pc");
             }
             await pc.setRemoteDescription(jsep);
             const transceivers = pc.getTransceivers();

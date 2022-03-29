@@ -4,6 +4,7 @@ import {Logger} from "ts-log";
 import {timeout} from "promise-timeout";
 import {randomString} from "./utils";
 import {LocalTrack, RemoteAudioTrack, RemoteTrack, RemoteVideoTrack, TrackMidMap} from "./track";
+import {ErrorCode, JanusError} from "./errors";
 
 export default class SignalClient {
 
@@ -84,7 +85,7 @@ export default class SignalClient {
 
             ws.onerror = async (ev: Event) => {
                 if (!this.ws) {
-                    reject(new Error('signal server was not reachable'));
+                    reject(new JanusError(ErrorCode.WS_ERR, "signal server was not reachable"));
                     return ;
                 }
                 console.log("signal server error", ev);
@@ -323,7 +324,7 @@ export default class SignalClient {
         }, "publisher", true);
 
         if (!configured.jsep) {
-            throw new Error("call configure failed.");
+            throw new JanusError(ErrorCode.UNEXPECTED_ERROR, "call configure failed, no jsep return");
         }
 
         return configured.jsep as RTCSessionDescriptionInit;
@@ -482,7 +483,7 @@ export default class SignalClient {
             if (handleType) {
                 params.handle_id = handleType === "publisher" ? this.publisherId : this.subscriberId;
                 if (!params.handle_id) {
-                    throw new Error(`${handleType} handle id is not exist.`);
+                    throw new JanusError(ErrorCode.UNEXPECTED_ERROR, `${handleType} handle id is not exist.`);
                 }
             }
 
@@ -493,7 +494,7 @@ export default class SignalClient {
             this.transactionEmitter.once(`transaction:${tid}`, (payload: any) => {
                 if (payload?.plugindata?.data?.error) {
                     const data = payload.plugindata?.data;
-                    reject(new Error(`(${data.error_code}) ${data.error}`));
+                    reject(new JanusError(ErrorCode.SIGNAL_ERROR, `(${data.error_code}) ${data.error}`));
                 }
 
                 resolve(payload);
