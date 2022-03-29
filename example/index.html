@@ -92,6 +92,7 @@
 
         document.getElementById("leave").addEventListener("click", async () => {
             await client.unpublish();
+            await client.leave();
         });
 
       </script>

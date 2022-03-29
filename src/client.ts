@@ -73,6 +73,7 @@ export default class JanusClient extends (EventEmitter as new () => TypedEventEm
         const pc = new RTCPeerConnection({
             iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
         });
+        this.publisherPc = pc;
 
         pc.oniceconnectionstatechange = () => {
             console.debug("ice state change", {state: pc.iceConnectionState});
@@ -106,6 +107,7 @@ export default class JanusClient extends (EventEmitter as new () => TypedEventEm
 
     public async unpublish(): Promise<void> {
         await this.signal.unpublish();
+        this.publisherPc = undefined;
     }
 
     async subscribe(userId: JanusID, track: RemoteTrack): Promise<void> {
@@ -229,6 +231,22 @@ export default class JanusClient extends (EventEmitter as new () => TypedEventEm
         await this.signal.startSubscriber(answer);
 
         return p;
+    }
+
+    public async leave(): Promise<void> {
+        await this.signal.destroy();
+
+        if (this.publisherPc) {
+            this.publisherPc.oniceconnectionstatechange = null;
+            this.publisherPc.onicecandidate = null;
+            this.publisherPc = undefined;
+        }
+
+        if (this.subscriberPc) {
+            this.subscriberPc.oniceconnectionstatechange = null;
+            this.subscriberPc.onicecandidate = null;
+            this.subscriberPc = undefined;
+        }
     }
 
     private handleTrackUnpublish(ev: Event) {

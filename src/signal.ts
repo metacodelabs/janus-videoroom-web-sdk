@@ -344,7 +344,6 @@ export default class SignalClient {
             room: this.roomId,
             ptype: 'subscriber',
             private_id: this.userPrivateId,
-            // streams: streams,
             streams: [{
                 feed: userId,
                 mid: track.mid,
@@ -432,6 +431,20 @@ export default class SignalClient {
 
     public async sendCandidateCompleted(handleType: HandleType): Promise<void> {
         await this.request({janus: "trickle", candidate: { completed: true }}, handleType);
+    }
+
+    async destroy(): Promise<void> {
+        await this.request({
+            janus: "destroy",
+        });
+
+        if (this.keepAliveTimerId) {
+            clearInterval(this.keepAliveTimerId);
+            this.keepAliveTimerId = undefined;
+        }
+
+        this.ws?.close();
+        this.ws = undefined;
     }
 
     private async createSession(): Promise<void> {
