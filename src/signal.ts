@@ -353,7 +353,7 @@ export default class SignalClient {
             body: body
         }, "subscriber", true);
 
-        this.log.debug("janus subscriber joined", joined);
+        this.log.debug("subscriber joined", joined);
 
         const subscription = {
             jsep: joined.jsep as Jsep,
@@ -370,7 +370,7 @@ export default class SignalClient {
             subscription.tracksMap.push(map);
         }
 
-        this.log.debug("janus subscriber subscription", subscription);
+        this.log.debug("new subscriptions", subscription);
 
         return subscription;
     }
@@ -404,7 +404,7 @@ export default class SignalClient {
             subscription.tracksMap.push(map);
         }
 
-        this.log.debug("janus subscribed", subscription);
+        this.log.debug("new subscriptions", subscription);
 
         return subscription;
     }

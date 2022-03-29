@@ -91,11 +91,7 @@
         const client = JanusSDK.createClient({codec: "h264"});
 
         client.on("user-published", async (remoteUserId, remoteTrack) => {
-            console.log("@user-published", remoteUserId, remoteTrack);
-
             await client.subscribe(remoteUserId, remoteTrack);
-            const track = remoteTrack.getMediaStreamTrack();
-            console.log("subscribed track", track);
             if (remoteTrack.isVideo()) {
                 remoteTrack.play(`video-${remoteUserId}`);
             }

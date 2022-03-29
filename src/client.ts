@@ -155,8 +155,8 @@ export default class JanusClient extends (EventEmitter as new () => TypedEventEm
 
         const p = new Promise<void>((resolve) => {
             this.innerEmitter.once("track", (mediaTrack: MediaStreamTrack) => {
-                this.log.warn("track", mediaTrack);
                 track.setMediaStreamTrack(mediaTrack.clone());
+                this.log.info(`subscribed (user id: ${userId}, ${track.toString()})`);
                 resolve();
             });
         });
