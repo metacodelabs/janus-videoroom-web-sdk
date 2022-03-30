@@ -28,26 +28,32 @@ export default class JanusClient extends (EventEmitter as new () => TypedEventEm
 
     private innerEmitter: EventEmitter;
 
-    private joined: boolean;
+    private _connectionState: ConnectionState;
+
+    private isJoined: boolean;
+
+    get connectionState(): ConnectionState {return this._connectionState}
 
     constructor(config: ClientConfig, log: Logger = console) {
         super();
         this.config = config;
         this.log = log;
-
         this.remoteUsers = new Map();
-        this.signal = new SignalClient();
         this.subscribeQueue = new PromiseQueue(1);
         this.trackMap = new RemoteTrackMap();
         this.innerEmitter = new EventEmitter();
-        this.joined = false;
+        this.isJoined = false;
+        this._connectionState = "DISCONNECTED";
+        this.signal = new SignalClient();
+        this.registerSignalHandler();
     }
 
     public async connect(server: string, token?: string, adminKey?: string): Promise<void> {
         this.log.info(`connect signal server: ${server}`);
+        this.changeConnectionState("CONNECTING");
         await this.signal.connect(server, token, adminKey);
         await this.signal.attach("publisher");
-        this.log.info("signal server connected");
+        this.changeConnectionState("CONNECTED");
     }
 
     public async exists(roomId: JanusID): Promise<boolean> {
@@ -58,13 +64,11 @@ export default class JanusClient extends (EventEmitter as new () => TypedEventEm
         return await this.signal.createRoom(roomId);
     }
 
-    public async join(roomId: JanusID, userId: JanusID): Promise<void> {
-        if (this.joined) {
-            throw new JanusError(ErrorCode.INVALID_OPERATION, "Already joined");
+    private registerSignalHandler(): void {
+        this.signal.onDisconnect = (reason: string): void => {
+            this.reset();
+            this.changeConnectionState("DISCONNECTED", ConnectionDisconnectedReason.NETWORK_ERROR);
         }
-        this.joined = true;
-
-        this.log.info(`join room (room id: ${roomId}, user id: ${userId})`);
 
         this.signal.onPublished = (remoteUserId: JanusID, remoteTrack: RemoteTrack): void => {
             this.log.info(`emit user-published event (uid: ${remoteUserId}, mid: ${remoteTrack.mid}, codec: ${remoteTrack.codec})`);
@@ -93,6 +97,15 @@ export default class JanusClient extends (EventEmitter as new () => TypedEventEm
             await pc.setLocalDescription(answer);
             await this.signal.startSubscriber(answer);
         }
+    }
+
+    public async join(roomId: JanusID, userId: JanusID): Promise<void> {
+        if (this.isJoined) {
+            throw new JanusError(ErrorCode.INVALID_OPERATION, "Already joined");
+        }
+        this.isJoined = true;
+
+        this.log.info(`join room (room id: ${roomId}, user id: ${userId})`);
 
         await this.signal.joinPublisher(roomId, userId);
 
@@ -121,6 +134,16 @@ export default class JanusClient extends (EventEmitter as new () => TypedEventEm
             } else {
                 this.signal.sendCandidateCompleted("publisher");
                 this.log.debug("publisher pc send candidate completed");
+            }
+        }
+
+        // https://developer.mozilla.org/en-US/docs/Web/API/RTCPeerConnection/connectionState
+        pc.onconnectionstatechange = () => {
+            this.log.info(`publisher pc connection state changed: ${pc.connectionState}`);
+            if (pc.connectionState === "failed") {
+                this.signal.close();
+                this.reset();
+                this.changeConnectionState("DISCONNECTED", ConnectionDisconnectedReason.NETWORK_ERROR);
             }
         }
 
@@ -262,8 +285,13 @@ export default class JanusClient extends (EventEmitter as new () => TypedEventEm
     }
 
     public async leave(): Promise<void> {
+        this.changeConnectionState("DISCONNECTING");
         await this.signal.destroy();
+        this.reset();
+        this.changeConnectionState("DISCONNECTED", ConnectionDisconnectedReason.LEAVE);
+    }
 
+    private reset(): void {
         this.remoteUsers.forEach((user: RemoteUserSubscribed, userId: JanusID) => {
             if (user.audioTrack) {
                 user.audioTrack.stop();
@@ -305,7 +333,7 @@ export default class JanusClient extends (EventEmitter as new () => TypedEventEm
         this.innerEmitter.removeAllListeners();
         this.trackMap.clear();
         this.subscribeQueue = new PromiseQueue(1);
-        this.joined = false;
+        this.isJoined = false;
     }
 
     private handleTrackUnpublish(ev: Event) {
@@ -343,6 +371,13 @@ export default class JanusClient extends (EventEmitter as new () => TypedEventEm
             this.log.warn("user unpublish failed, no transceivers");
         }
     }
+
+    private changeConnectionState(state: ConnectionState, reason?: ConnectionDisconnectedReason): void {
+        const prevState = this._connectionState;
+        this._connectionState = state;
+        this.log.info(`connection state: ${prevState} -> ${state}`, (reason ? `(reason: ${reason})` : ''));
+        this.emit("connection-state-change", state, prevState, reason);
+    }
 }
 
 export interface ClientConfig {
@@ -355,6 +390,16 @@ export type JanusClientCallbacks = {
     "user-unpublished": (remoteUserId: JanusID, remoteTrack: RemoteTrack) => Promise<void> | void;
 
     "user-left": (remoteUserId: JanusID) => Promise<void> | void;
+
+    "connection-state-change": (currState: ConnectionState, prevState: ConnectionState, reason?: ConnectionDisconnectedReason) => void;
+}
+
+export type ConnectionState = "DISCONNECTED" | "CONNECTING" | "CONNECTED" | "DISCONNECTING";
+
+export enum ConnectionDisconnectedReason {
+    LEAVE = "LEAVE",
+    KICKED = "KICKED",
+    NETWORK_ERROR = "NETWORK_ERROR",
 }
 
 export class RemoteUserSubscribed {

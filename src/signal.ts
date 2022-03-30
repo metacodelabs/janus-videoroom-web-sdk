@@ -8,13 +8,11 @@ import {ErrorCode, JanusError} from "./errors";
 
 export default class SignalClient {
 
-    private server?: string;
-
-    private roomId?: JanusID;
-
     private token?: string;
 
     private adminKey?: string;
+
+    private roomId?: JanusID;
 
     private ws?: WebSocket;
 
@@ -25,8 +23,6 @@ export default class SignalClient {
     private publisherId?: number;
 
     private subscriberId?: number;
-
-    private userId?: JanusID;
 
     /**
      * a different unique ID associated to the participant; meant to be private
@@ -52,7 +48,7 @@ export default class SignalClient {
 
     private keepAliveTimerId?: ReturnType<typeof setTimeout>;
 
-    public onClose?: (reason: string) => void;
+    public onDisconnect?: (reason: string) => void;
 
     public onLeave?: (userId: JanusID) => void;
 
@@ -68,13 +64,12 @@ export default class SignalClient {
     }
 
     public connect(server: string, token?: string, adminKey?: string): Promise<void> {
-        this.server = server;
         this.token = token;
         this.adminKey = adminKey;
 
         return new Promise((resolve, reject) => {
             this.ws = undefined;
-            const serverUrl = normalizeWebSocketUrl(this.server as string);
+            const serverUrl = normalizeWebSocketUrl(server);
 
             const ws = new WebSocket(serverUrl, "janus-protocol");
 
@@ -104,13 +99,13 @@ export default class SignalClient {
                 if (this.ws != ws || !this.isConnected) {
                     return ;
                 }
+
                 this.log.info("signal server connection closed", ev.reason);
-                this.isConnected = false;
-                this.stopKeepAliveTimer();
-                if (this.onClose) {
-                    this.onClose(ev.reason);
+                this.close();
+
+                if (this.onDisconnect) {
+                    this.onDisconnect(ev.reason);
                 }
-                this.ws = undefined;
             }
         });
     }
@@ -150,16 +145,6 @@ export default class SignalClient {
         }, "publisher");
 
         this.log.debug('janus room created');
-    }
-
-    public close():void {
-        this.stopKeepAliveTimer();
-        this.isConnected = false;
-        if (this.ws) {
-            this.ws.onclose = null;
-        }
-        this.ws?.close();
-        this.ws = undefined;
     }
 
     private startKeepAliveTimer(): void {
@@ -283,7 +268,6 @@ export default class SignalClient {
         }, "publisher", true);
 
         this.roomId = roomId;
-        this.userId = userId;
         this.userPrivateId = joined.plugindata.data.private_id;
 
         if (joined.plugindata.data.publishers) {
@@ -449,23 +433,28 @@ export default class SignalClient {
             janus: "destroy",
         });
 
+        this.close();
+    }
+
+    public close(): void {
+        if (this.ws) {
+            this.ws.onclose = null;
+            this.ws.close();
+            this.ws = undefined;
+        }
+
         if (this.keepAliveTimerId) {
             clearInterval(this.keepAliveTimerId);
             this.keepAliveTimerId = undefined;
         }
 
-        this.ws?.close();
-        this.ws = undefined;
-
-        this.server = undefined;
+        this.isConnected = false;
         this.roomId = undefined;
         this.token = undefined;
         this.adminKey = undefined;
-        this.isConnected = false;
         this.sessionId = undefined;
         this.publisherId = undefined;
         this.subscriberId = undefined;
-        this.userId = undefined;
         this.userPrivateId = undefined;
         this.ignoreAckRequests.clear();
         this.transactionEmitter.removeAllListeners();

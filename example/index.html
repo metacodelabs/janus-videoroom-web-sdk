@@ -105,10 +105,19 @@
             console.error("client.remoteUsers", client.remoteUsers);
         });
 
+        client.on("connection-state-change", (currState, prevState, reason) => {
+            if (currState === "DISCONNECTED" && reason === "NETWORK_ERROR") {
+                setTimeout(() => {
+                    join();
+                }, 2000);
+            }
+        });
+
         let videoTrack;
         let audioTrack;
 
-        document.getElementById("join").addEventListener("click", async () => {
+
+        const join = async () => {
             const config = {
                 server: document.getElementById("cfg-server").value,
                 token: document.getElementById("cfg-token").value,
@@ -150,9 +159,9 @@
             await client.join(config.roomId, config.userId);
 
             await client.publish([videoTrack, audioTrack]);
-        });
+        }
 
-        document.getElementById("leave").addEventListener("click", async () => {
+        const leave = async () => {
             if (videoTrack) {
                 videoTrack.stop();
                 videoTrack = undefined;
@@ -164,6 +173,17 @@
             }
 
             await client.leave();
+        }
+
+        document.getElementById("join").addEventListener("click", join);
+        document.getElementById("leave").addEventListener("click", leave);
+
+        window.addEventListener("offline", () => {
+            console.info("network state: offline");
+        });
+
+        window.addEventListener("online", () => {
+            console.info("network state: online");
         });
 
       </script>
