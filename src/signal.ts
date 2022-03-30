@@ -8,15 +8,19 @@ import {ErrorCode, JanusError} from "./errors";
 
 export default class SignalClient {
 
+    private readonly KEEP_ALIVE_PERIOD = 25000;
+
+    private ws?: WebSocket;
+
+    private isConnected: boolean;
+
+    private server?: string;
+
     private token?: string;
 
     private adminKey?: string;
 
     private roomId?: JanusID;
-
-    private ws?: WebSocket;
-
-    private isConnected: boolean;
 
     private sessionId?: number;
 
@@ -31,6 +35,12 @@ export default class SignalClient {
      */
     private userPrivateId?: number;
 
+    private ignoreAckRequests: Map<string, boolean> = new Map();
+
+    private transactionEmitter: EventEmitter;
+
+    private keepAliveTimerId?: ReturnType<typeof setTimeout>;
+
     /**
      * an optional opaque string meaningful to your application (e.g., to map all the handles of the same user);
      * @see https://janus.conf.meetecho.com/docs/JS.html
@@ -38,15 +48,7 @@ export default class SignalClient {
      */
     private readonly opaqueId?: string;
 
-    private ignoreAckRequests: Map<string, boolean> = new Map();
-
     private log: Logger;
-
-    private transactionEmitter: EventEmitter;
-
-    private readonly KEEP_ALIVE_PERIOD = 25000;
-
-    private keepAliveTimerId?: ReturnType<typeof setTimeout>;
 
     public onDisconnect?: (reason: string) => void;
 
@@ -63,12 +65,14 @@ export default class SignalClient {
         this.opaqueId = randomString(16);
     }
 
-    public connect(server: string, token?: string, adminKey?: string): Promise<void> {
+    public connect(server: string, token?: string, adminKey?: string, reconnect = false): Promise<void> {
+        this.server = server;
         this.token = token;
         this.adminKey = adminKey;
 
         return new Promise((resolve, reject) => {
             this.ws = undefined;
+            this.isConnected = false;
             const serverUrl = normalizeWebSocketUrl(server);
 
             const ws = new WebSocket(serverUrl, "janus-protocol");
@@ -76,7 +80,7 @@ export default class SignalClient {
             ws.onopen = async () => {
                 this.log.debug("signal server opened.");
                 this.ws = ws;
-                await this.createSession();
+                await this.createSession(reconnect);
                 this.isConnected = true;
                 this.startKeepAliveTimer();
                 resolve();
@@ -101,13 +105,24 @@ export default class SignalClient {
                 }
 
                 this.log.info("signal server connection closed", ev.reason);
-                this.close();
+                this.ws = undefined;
+                this.isConnected = false;
 
                 if (this.onDisconnect) {
                     this.onDisconnect(ev.reason);
                 }
             }
         });
+    }
+
+    public async reconnect(): Promise<void> {
+        if (!this.server) {
+            throw new JanusError(ErrorCode.INVALID_OPERATION, "the signal server has not yet been connected.");
+        }
+        this.stopKeepAliveTimer();
+
+        this.log.info("start reconnect");
+        await this.connect(this.server, this.token, this.adminKey, true);
     }
 
     async existsRoom(roomId: JanusID): Promise<boolean> {
@@ -420,6 +435,18 @@ export default class SignalClient {
         }, "subscriber", true);
     }
 
+    public async restartSubscriberIce(): Promise<RTCSessionDescriptionInit> {
+        const restarted = await this.request({
+            janus: "message",
+            body: {
+                request: "configure",
+                restart: true,
+            },
+        }, "subscriber", true);
+
+        return restarted.jsep as RTCSessionDescriptionInit;
+    }
+
     public async sendCandidate(candidate: RTCIceCandidate, handleType: HandleType): Promise<void> {
         await this.request({janus: "trickle", candidate: { completed: true }}, handleType);
     }
@@ -460,10 +487,20 @@ export default class SignalClient {
         this.transactionEmitter.removeAllListeners();
     }
 
-    private async createSession(): Promise<void> {
-        const created = await this.request({janus: "create"});
-        this.sessionId = created.data.id as number;
-        this.log.debug(`session created (id: ${this.sessionId})`);
+    private async createSession(reconnect = false): Promise<void> {
+        if (reconnect) {
+            if (!this.sessionId) {
+                throw new JanusError(ErrorCode.INVALID_OPERATION, "session id is not exist.");
+            }
+
+            await this.request({janus: "claim"});
+            this.log.debug(`session claimed (id: ${this.sessionId})`);
+
+        } else {
+            const created = await this.request({janus: "create"});
+            this.sessionId = created.data.id as number;
+            this.log.debug(`session created (id: ${this.sessionId})`);
+        }
     }
 
     private async request(params: any, handleType?: HandleType, ignoreAck = false, timeoutMs = 5000): Promise<any> {

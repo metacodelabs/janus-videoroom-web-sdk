@@ -64,10 +64,28 @@ export default class JanusClient extends (EventEmitter as new () => TypedEventEm
         return await this.signal.createRoom(roomId);
     }
 
+    private async handleDisconnect(): Promise<void> {
+        await this.signal.reconnect();
+        if (this.publisherPc) {
+            this.log.info("publisher pc ice restart");
+            const offer = await this.publisherPc.createOffer({iceRestart: true});
+            await this.publisherPc.setLocalDescription(offer);
+        }
+
+        if (this.subscriberPc) {
+            this.log.info("subscriber pc ice restart");
+            const jsep = await this.signal.restartSubscriberIce();
+            const pc = this.subscriberPc;
+            await pc.setRemoteDescription(jsep);
+            const answer = await pc.createAnswer();
+            await pc.setLocalDescription(answer);
+            await this.signal.startSubscriber(answer);
+        }
+    }
+
     private registerSignalHandler(): void {
         this.signal.onDisconnect = (reason: string): void => {
-            this.reset();
-            this.changeConnectionState("DISCONNECTED", ConnectionDisconnectedReason.NETWORK_ERROR);
+            // this.changeConnectionState("DISCONNECTED", ConnectionDisconnectedReason.NETWORK_ERROR);
         }
 
         this.signal.onPublished = (remoteUserId: JanusID, remoteTrack: RemoteTrack): void => {
@@ -138,12 +156,13 @@ export default class JanusClient extends (EventEmitter as new () => TypedEventEm
         }
 
         // https://developer.mozilla.org/en-US/docs/Web/API/RTCPeerConnection/connectionState
-        pc.onconnectionstatechange = () => {
+        pc.onconnectionstatechange = async () => {
             this.log.info(`publisher pc connection state changed: ${pc.connectionState}`);
             if (pc.connectionState === "failed") {
-                this.signal.close();
-                this.reset();
-                this.changeConnectionState("DISCONNECTED", ConnectionDisconnectedReason.NETWORK_ERROR);
+                await this.handleDisconnect();
+                // this.signal.close();
+                // this.reset();
+                // this.changeConnectionState("DISCONNECTED", ConnectionDisconnectedReason.NETWORK_ERROR);
             }
         }
 
@@ -235,6 +254,10 @@ export default class JanusClient extends (EventEmitter as new () => TypedEventEm
 
         pc.oniceconnectionstatechange = () => {
             this.log.debug("subscriber ice state change", {state: pc.iceConnectionState});
+        }
+
+        pc.onconnectionstatechange = () => {
+            this.log.debug("subscriber connection state change", {state: pc.connectionState});
         }
 
         pc.onicecandidate = (event: RTCPeerConnectionIceEvent) => {
@@ -345,20 +368,20 @@ export default class JanusClient extends (EventEmitter as new () => TypedEventEm
                 const evUser = this.trackMap.getUser(transceiver.mid as string);
                 if (evTrack && evUser) {
                     this.log.info(`emit user-unpublished event (uid: ${evUser}, kind: ${evTrack.getTrackKind()})`);
-                    const subscribedUser = this.remoteUsers.get(evUser);
-                    if (subscribedUser) {
-                        if (evTrack instanceof RemoteAudioTrack) {
-                            subscribedUser.audioTrack?.stop();
-                            subscribedUser.audioTrack = undefined;
-                        } else if (evTrack instanceof RemoteVideoTrack) {
-                            subscribedUser.videoTrack?.stop();
-                            subscribedUser.videoTrack = undefined;
-                        }
-
-                        if (!subscribedUser.audioTrack && !subscribedUser.videoTrack) {
-                            this.remoteUsers.delete(evUser);
-                        }
-                    }
+                    // const subscribedUser = this.remoteUsers.get(evUser);
+                    // if (subscribedUser) {
+                    //     if (evTrack instanceof RemoteAudioTrack) {
+                    //         subscribedUser.audioTrack?.stop();
+                    //         subscribedUser.audioTrack = undefined;
+                    //     } else if (evTrack instanceof RemoteVideoTrack) {
+                    //         subscribedUser.videoTrack?.stop();
+                    //         subscribedUser.videoTrack = undefined;
+                    //     }
+                    //
+                    //     if (!subscribedUser.audioTrack && !subscribedUser.videoTrack) {
+                    //         this.remoteUsers.delete(evUser);
+                    //     }
+                    // }
 
                     this.emit("user-unpublished", evUser, evTrack);
                 } else {
