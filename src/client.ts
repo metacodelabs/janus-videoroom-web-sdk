@@ -459,9 +459,11 @@ export default class JanusClient extends (EventEmitter as new () => TypedEventEm
 
     private changeConnectionState(state: ConnectionState, reason?: ConnectionDisconnectedReason): void {
         const prevState = this._connectionState;
-        this._connectionState = state;
-        this.log.info(`connection state: ${prevState} -> ${state}`, (reason ? `(reason: ${reason})` : ''));
-        this.emit("connection-state-change", state, prevState, reason);
+        if (prevState !== state) {
+            this._connectionState = state;
+            this.log.info(`connection state: ${prevState} -> ${state}`, (reason ? `(reason: ${reason})` : ''));
+            this.emit("connection-state-change", state, prevState, reason);
+        }
     }
 }
 

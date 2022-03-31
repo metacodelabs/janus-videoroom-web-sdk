@@ -1,7 +1,7 @@
 import {EventEmitter} from 'events';
 import {JanusID} from "./index";
 import {Logger} from "ts-log";
-import {timeout} from "promise-timeout";
+import {timeout, TimeoutError} from "promise-timeout";
 import {normalizeWebSocketUrl, randomString} from "./utils";
 import {LocalTrack, RemoteAudioTrack, RemoteTrack, RemoteVideoTrack, TrackMidMap} from "./track";
 import {ErrorCode, JanusError} from "./errors";
@@ -543,7 +543,11 @@ export default class SignalClient {
             return await timeout<any>(p, timeoutMs);
         } catch (error) {
             this.transactionEmitter.removeAllListeners(`transaction:${tid}`);
-            throw error;
+            if (error instanceof TimeoutError) {
+                throw new JanusError(ErrorCode.SIGNAL_ERROR, `signal response timeout (req: ${JSON.stringify(params)})`);
+            } else {
+                throw error;
+            }
         }
     }
 
