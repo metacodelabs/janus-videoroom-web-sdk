@@ -215,7 +215,7 @@ export default class SignalClient {
         } else if (type === "slowlink") {
             this.log.info(`<-- (${type})`, payload);
         } else if (type === "error") {
-            this.log.error(`<-- (${type})`, payload);
+            this.transactionEmitter.emit(`transaction:${tid}`, payload);
         } else if (type === "event") {
             if (tid) {
                 this.transactionEmitter.emit(`transaction:${tid}`, payload);
@@ -530,9 +530,15 @@ export default class SignalClient {
             this.ws?.send(JSON.stringify(params));
 
             this.transactionEmitter.once(`transaction:${tid}`, (payload: any) => {
+                if (payload?.error) {
+                    reject(new JanusError(ErrorCode.SIGNAL_ERROR, `(${payload.error?.code}) ${payload.error?.reason}`));
+                    return ;
+                }
+
                 if (payload?.plugindata?.data?.error) {
                     const data = payload.plugindata?.data;
                     reject(new JanusError(ErrorCode.SIGNAL_ERROR, `(${data.error_code}) ${data.error}`));
+                    return ;
                 }
 
                 resolve(payload);

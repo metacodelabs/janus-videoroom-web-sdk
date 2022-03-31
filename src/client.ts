@@ -76,14 +76,14 @@ export default class JanusClient extends (EventEmitter as new () => TypedEventEm
         return await this.signal.createRoom(roomId);
     }
 
-    private handleDisconnect(): void {
-        if (this.reconnectAttempts === 0 && this.connectionState === "RECONNECTING") {
+    private handleDisconnect(attemptsNext = false): void {
+        if (!attemptsNext && this.connectionState === "RECONNECTING") {
             return ;
         }
 
         if (this.reconnectAttempts === 0) {
-            this.reconnectStart = Date.now();
             this.changeConnectionState("RECONNECTING");
+            this.reconnectStart = Date.now();
         }
 
         const delay = (this.reconnectAttempts * this.reconnectAttempts) * 300;
@@ -123,7 +123,7 @@ export default class JanusClient extends (EventEmitter as new () => TypedEventEm
 
                 this.reconnectAttempts = 0;
                 this.reconnectStart = 0;
-
+                this.changeConnectionState("CONNECTED");
             } catch (err) {
                 this.log.error("reconnect error: ", err);
                 this.reconnectAttempts += 1;
@@ -133,7 +133,7 @@ export default class JanusClient extends (EventEmitter as new () => TypedEventEm
                     this.reset();
                     this.changeConnectionState("DISCONNECTED");
                 } else {
-                    this.handleDisconnect();
+                    this.handleDisconnect(true);
                 }
             }
 
