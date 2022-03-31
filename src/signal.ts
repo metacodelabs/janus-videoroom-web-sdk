@@ -87,7 +87,7 @@ export default class SignalClient {
                 }
 
                 this.isConnected = true;
-                // this.startKeepAliveTimer();
+                this.startKeepAliveTimer();
                 resolve();
             }
 
