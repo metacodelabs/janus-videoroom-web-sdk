@@ -150,8 +150,18 @@ export default class JanusClient extends (EventEmitter as new () => TypedEventEm
             this.emit("user-published", remoteUserId, remoteTrack);
         }
 
+        this.signal.onUnpublished = (remoteUserId: JanusID): void  => {
+            this.log.info(`emit user-unpublished event (uid: ${remoteUserId})`);
+            this.emit("user-unpublished", remoteUserId);
+            const user = this.remoteUsers.get(remoteUserId);
+            if (user) {
+                user.audioTrack?.stop();
+                user.videoTrack?.stop();
+                this.remoteUsers.delete(remoteUserId);
+            }
+        }
+
         this.signal.onLeave = async (userId: JanusID): Promise<void> => {
-            await this.signal.unsubscribe(userId);
             this.log.info(`emit user-left event (uid: ${userId})`);
             this.emit("user-left", userId);
         }
@@ -163,10 +173,6 @@ export default class JanusClient extends (EventEmitter as new () => TypedEventEm
                 throw new JanusError(ErrorCode.UNEXPECTED_ERROR, "no subscriber pc");
             }
             await pc.setRemoteDescription(jsep);
-            const transceivers = pc.getTransceivers();
-            for (const t of transceivers) {
-                t.direction = "recvonly";
-            }
 
             const answer = await pc.createAnswer();
             await pc.setLocalDescription(answer);
@@ -258,7 +264,7 @@ export default class JanusClient extends (EventEmitter as new () => TypedEventEm
         }
 
         const p = new Promise<void>((resolve) => {
-            this.innerEmitter.once("track", (mediaTrack: MediaStreamTrack) => {
+            this.innerEmitter.once("ontrack", (mediaTrack: MediaStreamTrack) => {
                 track.setMediaStreamTrack(mediaTrack.clone());
 
                 let subscribedUser = this.remoteUsers.get(userId);
@@ -269,14 +275,12 @@ export default class JanusClient extends (EventEmitter as new () => TypedEventEm
 
                 if (track instanceof RemoteVideoTrack) {
                     if (subscribedUser.videoTrack) {
-                        this.log.error(`user video track is already subscribed (uid: ${userId})`);
-                        // throw new JanusError(ErrorCode.INVALID_OPERATION, `user video track is already subscribed (uid: ${userId})`);
+                        subscribedUser.videoTrack.stop();
                     }
                     subscribedUser.videoTrack = track;
                 } else if (track instanceof RemoteAudioTrack) {
                     if (subscribedUser.audioTrack) {
-                        this.log.error(`user audio track is already subscribed (uid: ${userId})`);
-                        // throw new JanusError(ErrorCode.INVALID_OPERATION, `user audio track is already subscribed (uid: ${userId})`);
+                        subscribedUser.audioTrack.stop();
                     }
                     subscribedUser.audioTrack = track;
                 }
@@ -334,36 +338,22 @@ export default class JanusClient extends (EventEmitter as new () => TypedEventEm
         }
 
         pc.ontrack = (event: RTCTrackEvent) => {
-            this.log.debug("subscriber ontrack", event);
-
-            let onmuteTimer: ReturnType<typeof setTimeout> | undefined;
-
             event.track.onended = (ev) => {
-                this.log.debug("track onended");
-                if (onmuteTimer) {
-                    clearTimeout(onmuteTimer);
-                }
-                this.handleTrackUnpublish(ev);
+                const uid = this.trackMap.getUser(event.transceiver.mid as string);
+                this.log.debug(`${event.track.kind} track ended - true (uid: ${uid})`);
             }
 
             event.track.onmute = (ev) => {
-                this.log.debug("track onmute");
-                if (onmuteTimer) {
-                    clearTimeout(onmuteTimer);
-                }
-                onmuteTimer = setTimeout(() => {
-                    this.handleTrackUnpublish(ev);
-                }, 2000);
+                const uid = this.trackMap.getUser(event.transceiver.mid as string);
+                this.log.debug(`${event.track.kind} track mute - true (uid: ${uid})`);
             }
 
             event.track.onunmute = (ev) => {
-                this.log.debug("track onunmute", ev);
-                if (onmuteTimer) {
-                    clearTimeout(onmuteTimer);
-                }
+                const uid = this.trackMap.getUser(event.transceiver.mid as string);
+                this.log.debug(`${event.track.kind} track mute - false (uid: ${uid})`);
             }
 
-            this.innerEmitter.emit("track", event.track);
+            this.innerEmitter.emit("ontrack", event.track);
         }
 
         return pc;
@@ -424,42 +414,6 @@ export default class JanusClient extends (EventEmitter as new () => TypedEventEm
         this.isJoined = false;
     }
 
-    private handleTrackUnpublish(ev: Event) {
-        const transceivers = this.subscriberPc?.getTransceivers();
-        if (transceivers) {
-            const transceiver = transceivers.find(t => t.receiver.track === ev.target);
-            if (transceiver) {
-                const evTrack = this.trackMap.getTrack(transceiver.mid as string);
-                const evUser = this.trackMap.getUser(transceiver.mid as string);
-                if (evTrack && evUser) {
-                    this.log.info(`emit user-unpublished event (uid: ${evUser}, kind: ${evTrack.getTrackKind()})`);
-                    // const subscribedUser = this.remoteUsers.get(evUser);
-                    // if (subscribedUser) {
-                    //     if (evTrack instanceof RemoteAudioTrack) {
-                    //         subscribedUser.audioTrack?.stop();
-                    //         subscribedUser.audioTrack = undefined;
-                    //     } else if (evTrack instanceof RemoteVideoTrack) {
-                    //         subscribedUser.videoTrack?.stop();
-                    //         subscribedUser.videoTrack = undefined;
-                    //     }
-                    //
-                    //     if (!subscribedUser.audioTrack && !subscribedUser.videoTrack) {
-                    //         this.remoteUsers.delete(evUser);
-                    //     }
-                    // }
-
-                    this.emit("user-unpublished", evUser, evTrack);
-                } else {
-                    this.log.warn(`user unpublish failed, remote track or user not found`, evUser, evTrack);
-                }
-            } else {
-                this.log.warn("user unpublish failed, not found mid");
-            }
-        } else {
-            this.log.warn("user unpublish failed, no transceivers");
-        }
-    }
-
     private changeConnectionState(state: ConnectionState, reason?: ConnectionDisconnectedReason): void {
         const prevState = this._connectionState;
         if (prevState !== state) {
@@ -477,7 +431,7 @@ export interface ClientConfig {
 export type JanusClientCallbacks = {
     "user-published": (remoteUserId: JanusID, remoteTrack: RemoteTrack) => Promise<void> | void;
 
-    "user-unpublished": (remoteUserId: JanusID, remoteTrack: RemoteTrack) => Promise<void> | void;
+    "user-unpublished": (remoteUserId: JanusID) => Promise<void> | void;
 
     "user-left": (remoteUserId: JanusID) => Promise<void> | void;
 

@@ -52,6 +52,8 @@ export default class SignalClient {
 
     public onDisconnect?: (reason: string) => void;
 
+    public onUnpublished?: (userId: JanusID) => void;
+
     public onLeave?: (userId: JanusID) => void;
 
     public onUpdated?: (jsep: Jsep) => Promise<void>;
@@ -236,6 +238,13 @@ export default class SignalClient {
                 if (data.videoroom === "event" && data.publishers) {
                     processed = true;
                     this.emitUserPublished(data.publishers);
+                }
+
+                if (data.videoroom === "event" && data.unpublished) {
+                    processed = true;
+                    if (this.onUnpublished) {
+                        this.onUnpublished(data.unpublished);
+                    }
                 }
 
                 if (data.videoroom === "event" && data.leaving) {

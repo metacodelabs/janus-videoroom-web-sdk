@@ -1,13 +1,32 @@
 import {JanusID} from "./index";
 import {Logger} from "ts-log";
 
-class JanusTrack {
+abstract class JanusTrack {
 
     protected mediaStreamTrack?: MediaStreamTrack;
 
     protected mediaElement?: HTMLMediaElement;
 
     public bitrate?: number;
+
+    private readonly mediaElementHandler: (evt: Event) => void;
+
+    private readonly mediaElementEvents: string[];
+
+    protected constructor() {
+        this.mediaElementEvents = [
+            "play", "waiting", "suspend", "loadeddata", "canplay",  "playing", "pause", "stalled", "abort", "ended",
+            "emptied",  "error",
+        ];
+
+        this.mediaElementHandler = (evt: Event): void => {
+            if (evt.type == "error") {
+                console.log("video error", evt.toString());
+            } else {
+                console.log(`[${this.mediaStreamTrack?.kind}-track-${this.mediaStreamTrack?.id}] @${evt.type}`);
+            }
+        }
+    }
 
     public play(container: string | HTMLElement): void {
         if (!this.mediaStreamTrack) {
@@ -44,19 +63,8 @@ class JanusTrack {
         this.mediaElement = el;
         containerEl.appendChild(el);
 
-        const eventNames = [
-            "play", "waiting", "suspend", "loadeddata", "canplay",  "playing", "pause", "stalled", "abort", "ended",
-            "emptied",  "error",
-        ];
-
-        for (const name of eventNames) {
-            el.addEventListener(name, (event) => {
-                if (name == "error") {
-                    console.log("video error", event.toString());
-                } else {
-                    console.log(`[${this.mediaStreamTrack?.kind}-track-${this.mediaStreamTrack?.id}] @${name}`);
-                }
-            });
+        for (const name of this.mediaElementEvents) {
+            el.addEventListener(name, this.mediaElementHandler);
         }
 
         el.srcObject = new MediaStream([this.mediaStreamTrack]);
@@ -72,16 +80,23 @@ class JanusTrack {
     }
 
     public stop(): void {
+        console.log(`stop ${this.toString()}`);
+
+        if (this.mediaElement) {
+            for (const name of this.mediaElementEvents) {
+                this.mediaElement.removeEventListener(name, this.mediaElementHandler);
+            }
+            this.mediaElement.srcObject = null;
+            this.mediaElement.remove();
+            this.mediaElement = undefined;
+        }
+
         if (this.mediaStreamTrack) {
             this.mediaStreamTrack.onended = null;
             this.mediaStreamTrack.onmute = null;
             this.mediaStreamTrack.onunmute = null;
             this.mediaStreamTrack.stop();
-        }
-
-        if (this.mediaElement) {
-            this.mediaElement.srcObject = null;
-            this.mediaElement.remove();
+            this.mediaStreamTrack = undefined;
         }
     }
 
@@ -118,10 +133,10 @@ class JanusTrack {
 
     public toString(): string {
         if (!this.mediaStreamTrack) {
-            return "JanusTrack(None)";
+            return "track(none)";
         }
 
-        return `Track(${this.mediaStreamTrack.kind}, ${this.mediaStreamTrack.id}, ${this.mediaStreamTrack.label})`;
+        return `track(${this.mediaStreamTrack.kind}, ${this.mediaStreamTrack.id}, ${this.mediaStreamTrack.label})`;
     }
 }
 
@@ -237,6 +252,21 @@ export class RemoteTrackMap {
     public getTrack(formalMid: string): RemoteTrack | null {
         const track = this.tracks.get(formalMid);
         return track ? track : null;
+    }
+
+    public getUserTracks(userId: JanusID): RemoteTrack[] {
+        const tracks: RemoteTrack[] = [];
+        this.map.forEach((m)=> {
+            if (m.userId != userId) {
+                return ;
+            }
+            const track = this.getTrack(m.formalMid);
+            if (!track) {
+                return ;
+            }
+            tracks.push(track);
+        });
+        return tracks;
     }
 
     public getUser(formalMid: string): JanusID | null {
