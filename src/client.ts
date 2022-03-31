@@ -8,6 +8,9 @@ import PromiseQueue from "promise-queue";
 import {Logger} from "ts-log";
 import {ErrorCode, JanusError} from "./errors";
 
+const maxReconnectRetries = 10;
+const maxReconnectDuration = 60 * 1000;
+
 export default class JanusClient extends (EventEmitter as new () => TypedEventEmitter<JanusClientCallbacks>) {
 
     public readonly remoteUsers: Map<JanusID, RemoteUserSubscribed>;
@@ -26,11 +29,17 @@ export default class JanusClient extends (EventEmitter as new () => TypedEventEm
 
     private subscriberPc?: RTCPeerConnection;
 
+    private publishedTracks: LocalTrack[];
+
     private innerEmitter: EventEmitter;
 
     private _connectionState: ConnectionState;
 
     private isJoined: boolean;
+
+    private reconnectAttempts: number;
+
+    private reconnectStart: number;
 
     get connectionState(): ConnectionState {return this._connectionState}
 
@@ -42,7 +51,10 @@ export default class JanusClient extends (EventEmitter as new () => TypedEventEm
         this.subscribeQueue = new PromiseQueue(1);
         this.trackMap = new RemoteTrackMap();
         this.innerEmitter = new EventEmitter();
+        this.publishedTracks = [];
         this.isJoined = false;
+        this.reconnectAttempts = 0;
+        this.reconnectStart = 0;
         this._connectionState = "DISCONNECTED";
         this.signal = new SignalClient();
         this.registerSignalHandler();
@@ -64,28 +76,73 @@ export default class JanusClient extends (EventEmitter as new () => TypedEventEm
         return await this.signal.createRoom(roomId);
     }
 
-    private async handleDisconnect(): Promise<void> {
-        await this.signal.reconnect();
-        if (this.publisherPc) {
-            this.log.info("publisher pc ice restart");
-            const offer = await this.publisherPc.createOffer({iceRestart: true});
-            await this.publisherPc.setLocalDescription(offer);
+    private handleDisconnect(): void {
+        if (this.reconnectAttempts === 0 && this.connectionState === "RECONNECTING") {
+            return ;
         }
 
-        if (this.subscriberPc) {
-            this.log.info("subscriber pc ice restart");
-            const jsep = await this.signal.restartSubscriberIce();
-            const pc = this.subscriberPc;
-            await pc.setRemoteDescription(jsep);
-            const answer = await pc.createAnswer();
-            await pc.setLocalDescription(answer);
-            await this.signal.startSubscriber(answer);
+        if (this.reconnectAttempts === 0) {
+            this.reconnectStart = Date.now();
+            this.changeConnectionState("RECONNECTING");
         }
+
+        const delay = (this.reconnectAttempts * this.reconnectAttempts) * 300;
+        setTimeout(async () => {
+            if (this.connectionState !==  "RECONNECTING") {
+                return ;
+            }
+
+            try {
+                this.log.debug("reconnect attempts", this.reconnectAttempts);
+
+                await this.signal.reconnect();
+
+                if (this.publisherPc) {
+                    this.log.info("publisher pc ice restart");
+                    if (this.publishedTracks.length < 1) {
+                        throw new JanusError(ErrorCode.UNEXPECTED_ERROR, "no published tracks.");
+                    }
+
+                    const pc = this.publisherPc;
+
+                    const offer = await pc.createOffer({iceRestart: true});
+                    await pc.setLocalDescription(offer);
+                    const jsep = await this.signal.configureMedia(offer, this.publishedTracks);
+                    await pc.setRemoteDescription(jsep);
+                }
+
+                if (this.subscriberPc) {
+                    this.log.info("subscriber pc ice restart");
+                    const jsep = await this.signal.restartSubscriberIce();
+                    const pc = this.subscriberPc;
+                    await pc.setRemoteDescription(jsep);
+                    const answer = await pc.createAnswer();
+                    await pc.setLocalDescription(answer);
+                    await this.signal.startSubscriber(answer);
+                }
+
+                this.reconnectAttempts = 0;
+                this.reconnectStart = 0;
+
+            } catch (err) {
+                this.log.error("reconnect error: ", err);
+                this.reconnectAttempts += 1;
+                const duration = Date.now() - this.reconnectStart;
+                if (this.reconnectAttempts >= maxReconnectRetries || duration > maxReconnectDuration) {
+                    this.signal.close();
+                    this.reset();
+                    this.changeConnectionState("DISCONNECTED");
+                } else {
+                    this.handleDisconnect();
+                }
+            }
+
+        }, delay);
     }
 
     private registerSignalHandler(): void {
         this.signal.onDisconnect = (reason: string): void => {
-            // this.changeConnectionState("DISCONNECTED", ConnectionDisconnectedReason.NETWORK_ERROR);
+            this.handleDisconnect();
         }
 
         this.signal.onPublished = (remoteUserId: JanusID, remoteTrack: RemoteTrack): void => {
@@ -134,6 +191,7 @@ export default class JanusClient extends (EventEmitter as new () => TypedEventEm
         if (tracks instanceof LocalTrack) {
             tracks = [tracks];
         }
+        this.publishedTracks = tracks;
 
         this.log.info(`publish tracks [${tracks.toString()}]`);
 
@@ -160,9 +218,6 @@ export default class JanusClient extends (EventEmitter as new () => TypedEventEm
             this.log.info(`publisher pc connection state changed: ${pc.connectionState}`);
             if (pc.connectionState === "failed") {
                 await this.handleDisconnect();
-                // this.signal.close();
-                // this.reset();
-                // this.changeConnectionState("DISCONNECTED", ConnectionDisconnectedReason.NETWORK_ERROR);
             }
         }
 
@@ -184,6 +239,7 @@ export default class JanusClient extends (EventEmitter as new () => TypedEventEm
     public async unpublish(): Promise<void> {
         await this.signal.unpublish();
         this.publisherPc = undefined;
+        this.publishedTracks = [];
     }
 
     async subscribe(userId: JanusID, track: RemoteTrack): Promise<void> {
@@ -258,6 +314,9 @@ export default class JanusClient extends (EventEmitter as new () => TypedEventEm
 
         pc.onconnectionstatechange = () => {
             this.log.debug("subscriber connection state change", {state: pc.connectionState});
+            if (pc.connectionState === "failed") {
+                this.handleDisconnect();
+            }
         }
 
         pc.onicecandidate = (event: RTCPeerConnectionIceEvent) => {
@@ -353,9 +412,12 @@ export default class JanusClient extends (EventEmitter as new () => TypedEventEm
             this.subscriberPc = undefined;
         }
 
+        this.publishedTracks = [];
         this.innerEmitter.removeAllListeners();
         this.trackMap.clear();
         this.subscribeQueue = new PromiseQueue(1);
+        this.reconnectAttempts = 0;
+        this.reconnectStart = 0;
         this.isJoined = false;
     }
 
@@ -417,7 +479,7 @@ export type JanusClientCallbacks = {
     "connection-state-change": (currState: ConnectionState, prevState: ConnectionState, reason?: ConnectionDisconnectedReason) => void;
 }
 
-export type ConnectionState = "DISCONNECTED" | "CONNECTING" | "CONNECTED" | "DISCONNECTING";
+export type ConnectionState = "DISCONNECTED" | "CONNECTING" | "CONNECTED" | "RECONNECTING" | "DISCONNECTING";
 
 export enum ConnectionDisconnectedReason {
     LEAVE = "LEAVE",
