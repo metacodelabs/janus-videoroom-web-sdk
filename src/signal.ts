@@ -80,9 +80,14 @@ export default class SignalClient {
             ws.onopen = async () => {
                 this.log.debug("signal server opened.");
                 this.ws = ws;
-                await this.createSession(reconnect);
+                try {
+                    await this.createSession(reconnect);
+                } catch (err) {
+                    reject(err);
+                }
+
                 this.isConnected = true;
-                this.startKeepAliveTimer();
+                // this.startKeepAliveTimer();
                 resolve();
             }
 
@@ -503,7 +508,7 @@ export default class SignalClient {
         }
     }
 
-    private async request(params: any, handleType?: HandleType, ignoreAck = false, timeoutMs = 5000): Promise<any> {
+    private async request(params: any, handleType?: HandleType, ignoreAck = false, timeoutMs = 6000): Promise<any> {
         const tid = randomString(12);
         if (ignoreAck) {
             this.ignoreAckRequests.set(tid, true);
