@@ -247,6 +247,7 @@ export default class JanusClient extends (EventEmitter as new () => TypedEventEm
     }
 
     async doSubscribe(userId: JanusID, track: RemoteTrack): Promise<void> {
+        this.log.info(`start subscribe (uid: ${userId}, mid: ${track.mid}, codec: ${track.codec})`);
         let subscription: Subscription;
         if (!this.subscriberPc) {
             await this.signal.attach("subscriber");
@@ -268,12 +269,14 @@ export default class JanusClient extends (EventEmitter as new () => TypedEventEm
 
                 if (track instanceof RemoteVideoTrack) {
                     if (subscribedUser.videoTrack) {
-                        throw new JanusError(ErrorCode.INVALID_OPERATION, `user video track is already subscribed (uid: ${userId})`);
+                        this.log.error(`user video track is already subscribed (uid: ${userId})`);
+                        // throw new JanusError(ErrorCode.INVALID_OPERATION, `user video track is already subscribed (uid: ${userId})`);
                     }
                     subscribedUser.videoTrack = track;
                 } else if (track instanceof RemoteAudioTrack) {
                     if (subscribedUser.audioTrack) {
-                        throw new JanusError(ErrorCode.INVALID_OPERATION, `user audio track is already subscribed (uid: ${userId})`);
+                        this.log.error(`user audio track is already subscribed (uid: ${userId})`);
+                        // throw new JanusError(ErrorCode.INVALID_OPERATION, `user audio track is already subscribed (uid: ${userId})`);
                     }
                     subscribedUser.audioTrack = track;
                 }

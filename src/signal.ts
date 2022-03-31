@@ -358,14 +358,16 @@ export default class SignalClient {
             body: body
         }, "subscriber", true);
 
-        this.log.debug("subscriber joined", joined);
-
         const subscription = {
             jsep: joined.jsep as Jsep,
             tracksMap: []
         } as Subscription;
 
         for (const s of joined.plugindata.data.streams) {
+            if (!s?.active) {
+                continue;
+            }
+
             const map = {
                 type: s.type,
                 userId: s.feed_id,
@@ -376,6 +378,9 @@ export default class SignalClient {
         }
 
         this.log.debug("new subscriptions", subscription);
+        if (subscription.tracksMap.length === 0) {
+            this.log.warn("subscriptions has not tracks.");
+        }
 
         return subscription;
     }
@@ -400,6 +405,10 @@ export default class SignalClient {
         } as Subscription;
 
         for (const s of subscribed.plugindata.data.streams) {
+            if (!s?.active) {
+                continue;
+            }
+
             const map = {
                 type: s.type,
                 userId: s.feed_id,
@@ -410,6 +419,9 @@ export default class SignalClient {
         }
 
         this.log.debug("new subscriptions", subscription);
+        if (subscription.tracksMap.length === 0) {
+            this.log.warn("subscriptions has not tracks.");
+        }
 
         return subscription;
     }

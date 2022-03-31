@@ -91,6 +91,7 @@
         const client = JanusSDK.createClient({codec: "h264"});
 
         client.on("user-published", async (remoteUserId, remoteTrack) => {
+            console.log("(example) on user-published event", remoteUserId, remoteTrack);
             await client.subscribe(remoteUserId, remoteTrack);
             if (remoteTrack.isVideo()) {
                 remoteTrack.play(`video-${remoteUserId}`);
@@ -98,19 +99,14 @@
             if (remoteTrack.isAudio()) {
                 remoteTrack.play("audios");
             }
-            console.error("client.remoteUsers", client.remoteUsers);
         });
 
         client.on("user-unpublished", async(remoteUserId, remoteTrack) => {
-            console.error("client.remoteUsers", client.remoteUsers);
+            console.log("(example) on user-unpublished event", remoteUserId, remoteTrack);
         });
 
         client.on("connection-state-change", (currState, prevState, reason) => {
-            // if (currState === "DISCONNECTED" && reason === "NETWORK_ERROR") {
-            //     setTimeout(() => {
-            //         join();
-            //     }, 2000);
-            // }
+            console.log("(example) on connection-state-change");
         });
 
         let videoTrack;
