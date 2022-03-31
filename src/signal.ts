@@ -150,7 +150,7 @@ export default class SignalClient {
             room: roomId,
             permanent: false,
             is_private: true,
-            publishers: 5,
+            publishers: 16,
             bitrate: 400000, // @todo
             bitrate_cap: true,
             fir_freq: 1,
