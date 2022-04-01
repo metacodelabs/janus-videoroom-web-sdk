@@ -66,6 +66,9 @@
     <button id="unmuteVideo">Unmute Video</button>
 </div>
 
+<h5>Stats</h5>
+<pre id="stats"></pre>
+
 <h5>Users</h5>
 <div class="users">
     <div class="user">
@@ -167,9 +170,12 @@
             console.log("(example) on connection-state-change");
         });
 
+        client.on("stats", stats => {
+            document.getElementById("stats").innerText = JSON.stringify(stats, null, 2);
+        });
+
         let videoTrack;
         let audioTrack;
-
 
         const join = async () => {
             const config = {

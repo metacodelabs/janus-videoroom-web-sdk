@@ -7,6 +7,7 @@ import {LocalTrack, RemoteAudioTrack, RemoteTrack, RemoteTrackMap, RemoteVideoTr
 import PromiseQueue from "promise-queue";
 import {Logger} from "ts-log";
 import {ErrorCode, JanusError} from "./errors";
+import PCStats, {StatsResult} from "./pc-stats";
 
 const maxReconnectRetries = 10;
 const maxReconnectDuration = 60 * 1000;
@@ -240,6 +241,12 @@ export default class JanusClient extends (EventEmitter as new () => TypedEventEm
         await pc.setLocalDescription(offer);
         const jsep = await this.signal.configureMedia(offer, tracks);
         await pc.setRemoteDescription(jsep);
+
+        const stats = new PCStats(pc);
+        stats.start(2000);
+        stats.on("stats", report => {
+            this.emit("stats", report);
+        });
     }
 
     public async unpublish(): Promise<void> {
@@ -436,6 +443,8 @@ export type JanusClientCallbacks = {
     "user-left": (remoteUserId: JanusID) => Promise<void> | void;
 
     "connection-state-change": (currState: ConnectionState, prevState: ConnectionState, reason?: ConnectionDisconnectedReason) => void;
+
+    "stats": (stats: StatsResult) => void;
 }
 
 export type ConnectionState = "DISCONNECTED" | "CONNECTING" | "CONNECTED" | "RECONNECTING" | "DISCONNECTING";
