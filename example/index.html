@@ -56,6 +56,14 @@
     <button id="join">Join</button>
     |
     <button id="leave">Leave</button>
+    |
+    <button id="muteAudio">Mute Audio</button>
+    |
+    <button id="unmuteAudio">Unmute Audio</button>
+    |
+    <button id="muteVideo">Mute Video</button>
+    |
+    <button id="unmuteVideo">Unmute Video</button>
 </div>
 
 <h5>Users</h5>
@@ -223,6 +231,22 @@
 
         document.getElementById("join").addEventListener("click", join);
         document.getElementById("leave").addEventListener("click", leave);
+
+        document.getElementById("muteAudio").addEventListener("click", () => {
+            audioTrack.setMuted(true);
+        });
+
+        document.getElementById("unmuteAudio").addEventListener("click", () => {
+            audioTrack.setMuted(false);
+        });
+
+        document.getElementById("muteVideo").addEventListener("click", () => {
+            videoTrack.setMuted(true);
+        });
+
+        document.getElementById("unmuteVideo").addEventListener("click", () => {
+            videoTrack.setMuted(false);
+        });
 
         window.addEventListener("offline", () => {
             console.info("network state: offline");

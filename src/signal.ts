@@ -166,7 +166,7 @@ export default class SignalClient {
             body: body,
         }, "publisher");
 
-        this.log.debug('janus room created');
+        this.log.debug(`janus room created (publishers: ${body.publishers})`);
     }
 
     private startKeepAliveTimer(): void {

@@ -1,5 +1,6 @@
 import {JanusID} from "./index";
 import {Logger} from "ts-log";
+import {ErrorCode, JanusError} from "./errors";
 
 abstract class JanusTrack {
 
@@ -145,6 +146,14 @@ export abstract class LocalTrack extends JanusTrack {
         super();
         this.mediaStreamTrack = mediaStreamTrack;
         this.bitrate = config?.bitrate;
+    }
+
+    public setMuted(muted: boolean): void {
+        if (!this.mediaStreamTrack) {
+            throw new JanusError(ErrorCode.INVALID_OPERATION, "local track set muted failed, no media stream track.");
+        }
+
+        this.mediaStreamTrack.enabled = !muted;
     }
 }
 
