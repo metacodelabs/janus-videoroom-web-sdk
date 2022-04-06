@@ -175,8 +175,8 @@ export default class WebrtcStats extends (EventEmitter as new () => TypedEventEm
             return {uplink: 0, downlink: 0};
         }
 
-        const plr = Math.max(audioStats?.sendPacketsLostRate ?? 0, videoStats?.sendPacketsLostRate);
-        const rtt = Math.max(audioStats?.rtt ?? 0, videoStats?.rtt);
+        const plr = Math.max(audioStats?.sendPacketsLostRate ?? 0, videoStats?.sendPacketsLostRate ?? 0);
+        const rtt = Math.max(audioStats?.rtt ?? 0, videoStats?.rtt ?? 0);
 
         let uplink: NetworkQualityLevel;
         if (plr > 9 || rtt > 100) {
@@ -267,5 +267,3 @@ export interface NetworkQuality {
 }
 
 export type NetworkQualityLevel = 0 | 1 | 2 | 3 | 4 | 5;
-
-
