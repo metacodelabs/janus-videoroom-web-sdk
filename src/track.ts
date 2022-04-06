@@ -1,8 +1,9 @@
 import {JanusID} from "./index";
 import {Logger} from "ts-log";
 import {ErrorCode, JanusError} from "./errors";
+import {EventEmitter} from "events";
 
-abstract class JanusTrack {
+abstract class JanusTrack extends EventEmitter {
 
     protected mediaStreamTrack?: MediaStreamTrack;
 
@@ -15,6 +16,7 @@ abstract class JanusTrack {
     private readonly mediaElementEvents: string[];
 
     protected constructor() {
+        super();
         this.mediaElementEvents = [
             "play", "waiting", "suspend", "loadeddata", "canplay",  "playing", "pause", "stalled", "abort", "ended",
             "emptied",  "error",
@@ -154,6 +156,31 @@ export abstract class LocalTrack extends JanusTrack {
         }
 
         this.mediaStreamTrack.enabled = !muted;
+    }
+
+    public setMediaStreamTrack(newTrack: MediaStreamTrack) {
+        if (!this.mediaStreamTrack) {
+            throw new JanusError(ErrorCode.INVALID_OPERATION, "set new media stream track failed, old track does not exist.");
+        }
+
+        if (newTrack.kind != this.mediaStreamTrack.kind) {
+            throw new JanusError(ErrorCode.INVALID_OPERATION, "set new media stream track failed, new and old tracks have different kind.");
+        }
+
+        const oldTrack = this.mediaStreamTrack;
+        this.mediaStreamTrack = newTrack;
+
+        if (this.mediaElement) {
+            this.mediaElement.srcObject = new MediaStream([newTrack]);
+            const played = this.mediaElement.play();
+            if (played) {
+                played.catch(err => {
+                    console.error("playback interrupted", err.toString());
+                });
+            }
+        }
+
+        this.emit("new-track", newTrack, oldTrack);
     }
 }
 

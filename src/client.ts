@@ -247,6 +247,22 @@ export default class JanusClient extends (EventEmitter as new () => TypedEventEm
         const jsep = await this.signal.configureMedia(offer, tracks);
         await pc.setRemoteDescription(jsep);
 
+        tracks.forEach((track: LocalTrack) => {
+            track.on("new-track", (newMediaStreamTrack: MediaStreamTrack, oldMediaStreamTrack: MediaStreamTrack) => {
+                let replaced = false;
+                transceivers.forEach((t) => {
+                    if (t.sender && t.sender.track && t.sender.track === oldMediaStreamTrack) {
+                        t.sender.replaceTrack(newMediaStreamTrack);
+                        replaced = true;
+                    }
+                });
+
+                if (!replaced) {
+                    this.log.error("replace track failed, no old track found in pc");
+                }
+            });
+        });
+
         this.resetStats();
         this.publisherStats = new WebrtcStats(pc);
         this.publisherStats.start(2000);
