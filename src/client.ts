@@ -7,7 +7,8 @@ import {LocalTrack, RemoteAudioTrack, RemoteTrack, RemoteTrackMap, RemoteVideoTr
 import PromiseQueue from "promise-queue";
 import {Logger} from "ts-log";
 import {ErrorCode, JanusError} from "./errors";
-import PCStats, {StatsResult} from "./pc-stats";
+import WebrtcStats, {NetworkQuality, StatsResult} from "./stats";
+import {LocalAudioTrackStats, LocalVideoTrackStats} from "./stats";
 
 const maxReconnectRetries = 10;
 const maxReconnectDuration = 60 * 1000;
@@ -43,6 +44,10 @@ export default class JanusClient extends (EventEmitter as new () => TypedEventEm
     private reconnectStart: number;
 
     get connectionState(): ConnectionState {return this._connectionState}
+
+    private publisherStats?: WebrtcStats;
+
+    private networkQualityTimer?: ReturnType<typeof setInterval>;
 
     constructor(config: ClientConfig, log: Logger = console) {
         super();
@@ -242,11 +247,15 @@ export default class JanusClient extends (EventEmitter as new () => TypedEventEm
         const jsep = await this.signal.configureMedia(offer, tracks);
         await pc.setRemoteDescription(jsep);
 
-        const stats = new PCStats(pc);
-        stats.start(2000);
-        stats.on("stats", report => {
+        this.resetStats();
+        this.publisherStats = new WebrtcStats(pc);
+        this.publisherStats.start(2000);
+        this.publisherStats.on("stats", report => {
             this.emit("stats", report);
         });
+        setInterval(() => {
+            this.emit("network-quality", this.getNetworkQuality());
+        }, 2000);
     }
 
     public async unpublish(): Promise<void> {
@@ -373,6 +382,21 @@ export default class JanusClient extends (EventEmitter as new () => TypedEventEm
         this.changeConnectionState("DISCONNECTED", ConnectionDisconnectedReason.LEAVE);
     }
 
+    public getLocalAudioTrackStats(): LocalAudioTrackStats | undefined {
+        return this.publisherStats ? this.publisherStats.getLocalAudioTrackStats() : undefined;
+    }
+
+    public getKLocalVideoTrackStats(): LocalVideoTrackStats | undefined {
+        return this.publisherStats ? this.publisherStats.getLocalVideoTrackStats() : undefined;
+    }
+
+    public getNetworkQuality(): NetworkQuality {
+        if (!this.publisherStats) {
+            return {uplink: 0, downlink: 0};
+        }
+        return this.publisherStats.getNetworkQuality();
+    }
+
     private reset(): void {
         this.remoteUsers.forEach((user: RemoteUserSubscribed, userId: JanusID) => {
             if (user.audioTrack) {
@@ -419,6 +443,14 @@ export default class JanusClient extends (EventEmitter as new () => TypedEventEm
         this.reconnectAttempts = 0;
         this.reconnectStart = 0;
         this.isJoined = false;
+        this.resetStats();
+    }
+
+    private resetStats(): void {
+        this.publisherStats?.stop();
+        if (this.networkQualityTimer) {
+            clearInterval(this.networkQualityTimer);
+        }
     }
 
     private changeConnectionState(state: ConnectionState, reason?: ConnectionDisconnectedReason): void {
@@ -445,6 +477,8 @@ export type JanusClientCallbacks = {
     "connection-state-change": (currState: ConnectionState, prevState: ConnectionState, reason?: ConnectionDisconnectedReason) => void;
 
     "stats": (stats: StatsResult) => void;
+
+    "network-quality": (stats: NetworkQuality) => void;
 }
 
 export type ConnectionState = "DISCONNECTED" | "CONNECTING" | "CONNECTED" | "RECONNECTING" | "DISCONNECTING";

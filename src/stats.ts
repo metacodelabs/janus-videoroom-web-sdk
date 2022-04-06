@@ -4,15 +4,17 @@ import TypedEventEmitter from "typed-emitter";
 /**
  * @see https://www.w3.org/TR/webrtc-stats/
  */
-export default class PCStats extends (EventEmitter as new () => TypedEventEmitter<PCStatsCallbacks>) {
+export default class WebrtcStats extends (EventEmitter as new () => TypedEventEmitter<PCStatsCallbacks>) {
 
     private readonly pc: RTCPeerConnection;
 
     private timerId?: ReturnType<typeof setTimeout>;
 
-    private prevVideoStats: Map<string, VideoTrackStats>;
+    private prevVideoStats: Map<string, LocalVideoTrackStats>;
 
-    private prevAudioStats: Map<string, AudioTrackStats>;
+    private prevAudioStats: Map<string, LocalAudioTrackStats>;
+
+    private latestStats?: StatsResult;
 
     constructor(pc: RTCPeerConnection) {
         super();
@@ -55,8 +57,8 @@ export default class PCStats extends (EventEmitter as new () => TypedEventEmitte
         });
 
         const result = {
-            videoStats: [],
-            audioStats: [],
+            videos: [],
+            audios: [],
         } as StatsResult;
 
         sources.forEach(source => {
@@ -110,10 +112,10 @@ export default class PCStats extends (EventEmitter as new () => TypedEventEmitte
                     sendPacketsLost: inbound?.packetsLost ?? 0,
                     sendPacketsLostRate: sendPacketsLostRate,
                     rtt: inbound?.roundTripTime ?? 0,
-                } as VideoTrackStats;
+                } as LocalVideoTrackStats;
 
                 this.prevVideoStats.set(stats.id, stats);
-                result.videoStats.push(stats);
+                result.videos.push(stats);
 
             } else if (source.kind === "audio") {
                 const prevStats = this.prevAudioStats.get(source.trackIdentifier);
@@ -138,17 +140,56 @@ export default class PCStats extends (EventEmitter as new () => TypedEventEmitte
                     sendPacketsLost: inbound?.packetsLost ?? 0,
                     sendPacketsLostRate: sendPacketsLostRate,
                     rtt: inbound?.roundTripTime ?? 0,
-                } as AudioTrackStats;
+                } as LocalAudioTrackStats;
 
                 this.prevAudioStats.set(stats.id, stats);
-                result.audioStats.push(stats);
+                result.audios.push(stats);
             }
 
         });
 
+        this.latestStats = result;
         this.emit("stats", result);
+    }
 
-        return ;
+    public getLocalAudioTrackStats(): LocalAudioTrackStats | undefined {
+        return this.latestStats && this.latestStats.audios.length > 0 ? this.latestStats.audios[0] : undefined;
+    }
+
+    public getLocalVideoTrackStats(): LocalVideoTrackStats | undefined {
+        return this.latestStats && this.latestStats.videos.length > 0 ? this.latestStats.videos[0] : undefined;
+    }
+
+    /**
+     * @todo downlink quality
+     */
+    public getNetworkQuality(): NetworkQuality {
+        if (!navigator.onLine) {
+            return {uplink: 5, downlink: 5};
+        }
+
+        const audioStats = this.latestStats?.audios[0];
+        const videoStats = this.latestStats?.videos[0];
+
+        if (!audioStats && !videoStats) {
+            return {uplink: 0, downlink: 0};
+        }
+
+        const plr = Math.max(audioStats?.sendPacketsLostRate ?? 0, videoStats?.sendPacketsLostRate);
+        const rtt = Math.max(audioStats?.rtt ?? 0, videoStats?.rtt);
+
+        let uplink: NetworkQualityLevel;
+        if (plr > 9 || rtt > 100) {
+            uplink = 4;
+        } else if (plr > 5 || rtt > 80) {
+            uplink = 3;
+        } else if (plr > 1 || rtt > 40) {
+            uplink = 2;
+        } else {
+            uplink = 1;
+        }
+
+        return {uplink: uplink, downlink: 0};
     }
 
     private loop(interval: number): void {
@@ -164,12 +205,11 @@ export type PCStatsCallbacks = {
 }
 
 export interface StatsResult {
-    videoStats: VideoTrackStats[];
-    audioStats: AudioTrackStats[];
+    audios: LocalAudioTrackStats[];
+    videos: LocalVideoTrackStats[];
 }
 
-
-interface VideoTrackStats {
+export interface LocalVideoTrackStats {
     id: string;
 
     timestamp: number;
@@ -203,7 +243,7 @@ interface VideoTrackStats {
     rtt: number;
 }
 
-interface AudioTrackStats {
+export interface LocalAudioTrackStats {
     id: string;
 
     timestamp: number;
@@ -220,4 +260,12 @@ interface AudioTrackStats {
 
     rtt: number;
 }
+
+export interface NetworkQuality {
+    uplink: NetworkQualityLevel;
+    downlink: NetworkQualityLevel;
+}
+
+export type NetworkQualityLevel = 0 | 1 | 2 | 3 | 4 | 5;
+
 

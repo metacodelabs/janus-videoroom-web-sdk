@@ -67,6 +67,7 @@
 </div>
 
 <h5>Stats</h5>
+<pre id="network"></pre>
 <pre id="stats"></pre>
 
 <h5>Users</h5>
@@ -168,6 +169,10 @@
 
         client.on("connection-state-change", (currState, prevState, reason) => {
             console.log("(example) on connection-state-change");
+        });
+
+        client.on("network-quality", stats => {
+            document.getElementById("network").innerText = JSON.stringify(stats);
         });
 
         client.on("stats", stats => {
