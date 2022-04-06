@@ -45,6 +45,10 @@
     </select>
     <button id="join">Join</button>
     |
+    <button id="startForward">Start Forward</button>
+    |
+    <button id="stopForward">Stop Forward</button>
+    |
     <button id="leave">Leave</button>
     |
     <button id="muteAudio">Mute Audio</button>
@@ -57,10 +61,6 @@
     |
     <button id="switchCamera">Switch Camera</button>
 </div>
-
-<h5>Stats</h5>
-<pre id="network"></pre>
-<pre id="stats"></pre>
 
 <h5>Users</h5>
 <div class="users">
@@ -90,6 +90,10 @@
     </div>
 </div>
 <div id="audios" style="display: none;"></div>
+
+<h5>Stats</h5>
+<pre id="network"></pre>
+<pre id="stats"></pre>
 
     <script type="module">
         const query = new Proxy(new URLSearchParams(window.location.search), {
@@ -209,6 +213,18 @@
 
         document.getElementById("unmuteVideo").addEventListener("click", () => {
             videoTrack.setMuted(false);
+        });
+
+        document.getElementById("startForward").addEventListener("click", () => {
+            client.startForward("127.0.0.1", (audioPt, videoPt) => {
+                return {
+                    audioPort: 1000, videoPort: 1001,
+                }
+            });
+        });
+
+        document.getElementById("stopForward").addEventListener("click", async () => {
+            await client.stopForward();
         });
 
         let cameraFront = true;

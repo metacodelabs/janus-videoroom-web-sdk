@@ -1,14 +1,14 @@
 import {VIDEO_CODECS} from "./types";
 import {EventEmitter} from 'events';
 import type TypedEventEmitter from 'typed-emitter';
-import SignalClient, {Jsep, Subscription} from "./signal";
+import SignalClient, {ForwardTrack, Jsep, Subscription} from "./signal";
 import {JanusID} from "./index";
 import {LocalTrack, RemoteAudioTrack, RemoteTrack, RemoteTrackMap, RemoteVideoTrack} from "./track";
 import PromiseQueue from "promise-queue";
 import {Logger} from "ts-log";
 import {ErrorCode, JanusError} from "./errors";
-import WebrtcStats, {NetworkQuality, StatsResult} from "./stats";
-import {LocalAudioTrackStats, LocalVideoTrackStats} from "./stats";
+import WebrtcStats, {LocalAudioTrackStats, LocalVideoTrackStats, NetworkQuality, StatsResult} from "./stats";
+import * as sdpTransform from 'sdp-transform';
 
 const maxReconnectRetries = 10;
 const maxReconnectDuration = 60 * 1000;
@@ -49,6 +49,8 @@ export default class JanusClient extends (EventEmitter as new () => TypedEventEm
 
     private networkQualityTimer?: ReturnType<typeof setInterval>;
 
+    private forwardStreamIds: number[];
+
     constructor(config: ClientConfig, log: Logger = console) {
         super();
         this.config = config;
@@ -64,6 +66,7 @@ export default class JanusClient extends (EventEmitter as new () => TypedEventEm
         this._connectionState = "DISCONNECTED";
         this.signal = new SignalClient();
         this.registerSignalHandler();
+        this.forwardStreamIds = [];
     }
 
     public async connect(server: string, token?: string, adminKey?: string): Promise<void> {
@@ -413,6 +416,60 @@ export default class JanusClient extends (EventEmitter as new () => TypedEventEm
         return this.publisherStats.getNetworkQuality();
     }
 
+    public async startForward(host: string, getForwardPortCallback: (audioPt: number, videoPt: number) => Promise<{ audioPort: number, videoPort: number }>): Promise<void> {
+        if (!this.publisherPc) {
+            throw new JanusError(ErrorCode.UNEXPECTED_ERROR, "start forward failed, no publisher pc.");
+        }
+
+        const rawSdp = this.publisherPc?.remoteDescription?.sdp as string;
+        if (!rawSdp) {
+            throw new JanusError(ErrorCode.UNEXPECTED_ERROR, "start forward failed, no sdp.");
+        }
+
+        const sdp = sdpTransform.parse(rawSdp);
+        if (!sdp) {
+            throw new JanusError(ErrorCode.UNEXPECTED_ERROR, "start forward failed, parse sdp failed.");
+        }
+
+        this.log.info("start forward");
+
+        let audioPayload: number | undefined;
+        let videoPayload: number | undefined;
+        let audioMid: string | undefined;
+        let videoMid: string | undefined;
+        for (const media of sdp.media) {
+            for (const rtp of media.rtp) {
+                if (rtp.codec.toLowerCase() === "h264") {
+                    videoPayload = rtp.payload;
+                    videoMid = media.mid;
+                } else if (rtp.codec.toLowerCase() === "opus") {
+                    audioPayload = rtp.payload;
+                    audioMid = media.mid
+                }
+            }
+        }
+
+        if (!audioPayload || !videoPayload || audioMid === undefined || videoMid === undefined) {
+            throw new JanusError(ErrorCode.UNEXPECTED_ERROR, "start forward failed, parse sdp media payload error.");
+        }
+
+        const port = await getForwardPortCallback(audioPayload, videoPayload);
+
+        const forwardTracks = [
+            {mid: "" + audioMid, port: port.audioPort, pt: audioPayload},
+            {mid: "" + videoMid, port: port.videoPort, pt: videoPayload},
+        ] as ForwardTrack[];
+
+        this.forwardStreamIds = await this.signal.startForward(host, forwardTracks);
+    }
+
+    public async stopForward(): Promise<void> {
+        this.log.info("stop forward");
+        for (const id of this.forwardStreamIds) {
+            await this.signal.stopForward(id);
+        }
+    }
+
     private reset(): void {
         this.remoteUsers.forEach((user: RemoteUserSubscribed, userId: JanusID) => {
             if (user.audioTrack) {
@@ -460,6 +517,7 @@ export default class JanusClient extends (EventEmitter as new () => TypedEventEm
         this.reconnectStart = 0;
         this.isJoined = false;
         this.resetStats();
+        this.forwardStreamIds = [];
     }
 
     private resetStats(): void {

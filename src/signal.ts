@@ -22,6 +22,8 @@ export default class SignalClient {
 
     private roomId?: JanusID;
 
+    private userId?: JanusID;
+
     private sessionId?: number;
 
     private publisherId?: number;
@@ -297,6 +299,7 @@ export default class SignalClient {
         }, "publisher", true);
 
         this.roomId = roomId;
+        this.userId = userId;
         this.userPrivateId = joined.plugindata.data.private_id;
 
         if (joined.plugindata.data.publishers) {
@@ -503,6 +506,7 @@ export default class SignalClient {
 
         this.isConnected = false;
         this.roomId = undefined;
+        this.userId = undefined;
         this.token = undefined;
         this.adminKey = undefined;
         this.sessionId = undefined;
@@ -511,6 +515,49 @@ export default class SignalClient {
         this.userPrivateId = undefined;
         this.ignoreAckRequests.clear();
         this.transactionEmitter.removeAllListeners();
+    }
+
+    public async startForward(host: string, tracks: ForwardTrack[]): Promise<number[]> {
+        const body = {
+            request: "rtp_forward",
+            room: this.roomId,
+            publisher_id: this.userId,
+            host: host,
+            host_family: "ipv4",
+            streams: tracks,
+            admin_key: this.adminKey,
+        };
+
+        const resp = await this.request({
+            janus: "message",
+            body: body
+        }, "publisher", true);
+
+        const forwarders = resp?.plugindata?.data?.forwarders ?? [];
+        if (forwarders.length === 0) {
+            throw new JanusError(ErrorCode.UNEXPECTED_ERROR, "forward failed, no forward streams.");
+        }
+
+        const streamIds: number[] = [];
+        forwarders.forEach((f: { stream_id: number; }) => {
+            streamIds.push(f.stream_id);
+        });
+
+        return streamIds;
+    }
+
+    public async stopForward(streamId: number): Promise<void> {
+        const body = {
+            request: "stop_rtp_forward",
+            room: this.roomId,
+            publisher_id: this.userId,
+            stream_id: streamId,
+        };
+
+        await this.request({
+            janus: "message",
+            body: body
+        }, "publisher", true);
     }
 
     private async createSession(reconnect = false): Promise<void> {
@@ -611,4 +658,10 @@ export interface Jsep {
 export interface Subscription {
     jsep: Jsep;
     tracksMap: TrackMidMap[];
+}
+
+export interface ForwardTrack {
+    mid: string;
+    port: number;
+    pt: number;
 }
