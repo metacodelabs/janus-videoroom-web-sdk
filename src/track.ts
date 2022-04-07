@@ -3,7 +3,7 @@ import {Logger} from "ts-log";
 import {ErrorCode, JanusError} from "./errors";
 import {EventEmitter} from "events";
 
-abstract class JanusTrack extends EventEmitter {
+export abstract class JanusTrack extends EventEmitter {
 
     protected mediaStreamTrack?: MediaStreamTrack;
 

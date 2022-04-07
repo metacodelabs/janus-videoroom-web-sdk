@@ -13,7 +13,9 @@ import * as sdpTransform from 'sdp-transform';
 const maxReconnectRetries = 10;
 const maxReconnectDuration = 60 * 1000;
 
-export default class JanusClient extends (EventEmitter as new () => TypedEventEmitter<JanusClientCallbacks>) {
+export const JanusClientBase = EventEmitter as new () => TypedEventEmitter<JanusClientCallbacks>;
+
+export class JanusClient extends JanusClientBase {
 
     public readonly remoteUsers: Map<JanusID, RemoteUserSubscribed>;
 
@@ -67,6 +69,8 @@ export default class JanusClient extends (EventEmitter as new () => TypedEventEm
         this.signal = new SignalClient();
         this.registerSignalHandler();
         this.forwardStreamIds = [];
+
+        this.log.info("janus client constructed", this.config);
     }
 
     public async connect(server: string, token?: string, adminKey?: string): Promise<void> {
