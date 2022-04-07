@@ -105,7 +105,7 @@
         document.getElementById("cfg-token").value = query.token;
         document.getElementById("cfg-admin-key").value = query.adminKey;
 
-        import JanusSDK from '../dist/index.js';
+        import JanusSDK from '../dist/janus-videoroom-web-sdk.js';
         const client = JanusSDK.createClient({codec: "h264"});
 
         client.on("user-published", async (remoteUserId, remoteTrack) => {
