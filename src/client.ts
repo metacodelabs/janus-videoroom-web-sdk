@@ -524,6 +524,10 @@ export class JanusClient extends JanusClientBase {
         this.forwardStreamIds = [];
     }
 
+    public getSessionId(): number {
+        return this.signal.getSessionId();
+    }
+
     private resetStats(): void {
         this.publisherStats?.stop();
         if (this.networkQualityTimer) {

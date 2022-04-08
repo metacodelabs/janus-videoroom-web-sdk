@@ -560,6 +560,13 @@ export default class SignalClient {
         }, "publisher", true);
     }
 
+    public getSessionId(): number {
+        if (!this.sessionId) {
+            throw new JanusError(ErrorCode.INVALID_OPERATION, "session id is not exist.");
+        }
+        return this.sessionId;
+    }
+
     private async createSession(reconnect = false): Promise<void> {
         if (reconnect) {
             if (!this.sessionId) {
