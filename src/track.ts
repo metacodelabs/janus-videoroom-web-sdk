@@ -4,6 +4,11 @@ import {ErrorCode, JanusError} from "./errors";
 import {TrackKind} from "./types";
 import {EventEmitter} from "events";
 
+const mediaElementEvents = [
+    "play", "waiting", "suspend", "loadeddata", "canplay",  "playing", "pause", "stalled", "abort", "ended",
+    "emptied",  "error",
+];
+
 export abstract class JanusTrack extends EventEmitter {
 
     protected mediaStreamTrack?: MediaStreamTrack;
@@ -12,24 +17,10 @@ export abstract class JanusTrack extends EventEmitter {
 
     public bitrate?: number;
 
-    private readonly mediaElementHandler: (evt: Event) => void;
-
-    private readonly mediaElementEvents: string[];
+    private mediaElementHandler?: (evt: Event) => void;
 
     protected constructor() {
         super();
-        this.mediaElementEvents = [
-            "play", "waiting", "suspend", "loadeddata", "canplay",  "playing", "pause", "stalled", "abort", "ended",
-            "emptied",  "error",
-        ];
-
-        this.mediaElementHandler = (evt: Event): void => {
-            if (evt.type == "error") {
-                console.log("video error", evt.toString());
-            } else {
-                console.log(`[${this.mediaStreamTrack?.kind}-track-${this.mediaStreamTrack?.id}] @${evt.type}`);
-            }
-        }
     }
 
     public play(container: string | HTMLElement): void {
@@ -67,8 +58,16 @@ export abstract class JanusTrack extends EventEmitter {
         this.mediaElement = el;
         containerEl.appendChild(el);
 
-        for (const name of this.mediaElementEvents) {
-            el.addEventListener(name, this.mediaElementHandler);
+        this.mediaElementHandler = (evt: Event): void => {
+            if (evt.type == "error") {
+                console.log("video error", evt.toString());
+            } else {
+                console.log(`[${this.mediaStreamTrack?.kind}-track-${this.mediaStreamTrack?.id}] @${evt.type}`);
+            }
+        }
+
+        for (const name of mediaElementEvents) {
+            el.addEventListener(name, this.mediaElementHandler.bind(this));
         }
 
         el.srcObject = new MediaStream([this.mediaStreamTrack]);
@@ -87,9 +86,12 @@ export abstract class JanusTrack extends EventEmitter {
         console.log(`stop ${this.toString()}`);
 
         if (this.mediaElement) {
-            for (const name of this.mediaElementEvents) {
-                this.mediaElement.removeEventListener(name, this.mediaElementHandler);
+            if (this.mediaElementHandler) {
+                for (const name of mediaElementEvents) {
+                    this.mediaElement.removeEventListener(name, this.mediaElementHandler);
+                }
             }
+
             this.mediaElement.srcObject = null;
             this.mediaElement.remove();
             this.mediaElement = undefined;
