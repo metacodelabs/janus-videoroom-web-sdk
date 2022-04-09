@@ -48,4 +48,7 @@ export type {
 
 } from "./stats";
 
-export type {VIDEO_CODECS} from "./types";
+export type {
+    VIDEO_CODECS,
+    TrackKind
+} from "./types";

@@ -1,6 +1,7 @@
 import {JanusID} from "./index";
 import {Logger} from "ts-log";
 import {ErrorCode, JanusError} from "./errors";
+import {TrackKind} from "./types";
 import {EventEmitter} from "events";
 
 export abstract class JanusTrack extends EventEmitter {
@@ -103,24 +104,8 @@ export abstract class JanusTrack extends EventEmitter {
         }
     }
 
-    public isVideo(): boolean {
-        return !!this.mediaStreamTrack && this.mediaStreamTrack.kind === "video";
-    }
-
-    public isAudio(): boolean {
-        return !!this.mediaStreamTrack && this.mediaStreamTrack.kind === "audio";
-    }
-
-    public getTrackKind(): "audio" | "video" | null {
-        if (this.isVideo()) {
-            return "video";
-        }
-
-        if (this.isAudio()) {
-            return "audio";
-        }
-
-        return null;
+    get kind(): TrackKind | undefined {
+        return this.mediaStreamTrack?.kind as TrackKind;
     }
 
     public getMediaStreamTrack(): MediaStreamTrack {
@@ -128,10 +113,6 @@ export abstract class JanusTrack extends EventEmitter {
             throw new Error("no media stream track");
         }
         return this.mediaStreamTrack;
-    }
-
-    public setMediaStreamTrack(track: MediaStreamTrack) {
-        this.mediaStreamTrack = track;
     }
 
     public toString(): string {
@@ -158,7 +139,7 @@ export abstract class LocalTrack extends JanusTrack {
         this.mediaStreamTrack.enabled = !muted;
     }
 
-    public setMediaStreamTrack(newTrack: MediaStreamTrack) {
+    public replace(newTrack: MediaStreamTrack) {
         if (!this.mediaStreamTrack) {
             throw new JanusError(ErrorCode.INVALID_OPERATION, "set new media stream track failed, old track does not exist.");
         }
@@ -180,7 +161,7 @@ export abstract class LocalTrack extends JanusTrack {
             }
         }
 
-        this.emit("new-track", newTrack, oldTrack);
+        this.emit("replace-track", newTrack, oldTrack);
     }
 }
 
@@ -213,6 +194,9 @@ export abstract class RemoteTrack extends JanusTrack {
         this.mid = mid;
         this.codec = codec;
     }
+
+    public abstract setMediaStreamTrack(track: MediaStreamTrack): void;
+
 }
 
 export class RemoteVideoTrack extends RemoteTrack {
@@ -221,11 +205,12 @@ export class RemoteVideoTrack extends RemoteTrack {
         super(mid, codec);
     }
 
-    public setMediaStreamTrack(track: MediaStreamTrack) {
+    public setMediaStreamTrack(track: MediaStreamTrack): void {
         if (track.kind !== "video") {
             throw new Error("media stream track kind is not video.");
         }
-        super.setMediaStreamTrack(track);
+
+        this.mediaStreamTrack = track;
     }
 }
 
@@ -235,11 +220,11 @@ export class RemoteAudioTrack extends RemoteTrack {
         super(mid, codec);
     }
 
-    public setMediaStreamTrack(track: MediaStreamTrack) {
+    public setMediaStreamTrack(track: MediaStreamTrack): void {
         if (track.kind !== "audio") {
             throw new Error("media stream track kind is not audio.");
         }
-        super.setMediaStreamTrack(track);
+        this.mediaStreamTrack = track;
     }
 }
 

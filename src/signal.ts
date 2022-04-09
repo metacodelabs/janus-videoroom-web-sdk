@@ -320,9 +320,9 @@ export default class SignalClient {
         let audioBitrate = 0;
         let videoBitrate = 0;
         tracks.forEach((track: LocalTrack) => {
-            if (track.isAudio() && track.bitrate) {
+            if (track.kind === "audio" && track.bitrate) {
                 audioBitrate += track.bitrate;
-            } else if (track.isVideo() && track.bitrate) {
+            } else if (track.kind === "video" && track.bitrate) {
                 videoBitrate += track.bitrate;
             }
         });

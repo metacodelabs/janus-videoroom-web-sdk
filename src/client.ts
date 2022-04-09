@@ -255,7 +255,7 @@ export class JanusClient extends JanusClientBase {
         await pc.setRemoteDescription(jsep);
 
         tracks.forEach((track: LocalTrack) => {
-            track.on("new-track", (newMediaStreamTrack: MediaStreamTrack, oldMediaStreamTrack: MediaStreamTrack) => {
+            track.on("replace-track", (newMediaStreamTrack: MediaStreamTrack, oldMediaStreamTrack: MediaStreamTrack) => {
                 let replaced = false;
                 transceivers.forEach((t) => {
                     if (t.sender && t.sender.track && t.sender.track === oldMediaStreamTrack) {

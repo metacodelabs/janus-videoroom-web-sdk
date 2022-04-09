@@ -111,10 +111,10 @@
         client.on("user-published", async (remoteUserId, remoteTrack) => {
             console.log("(example) on user-published event", remoteUserId, remoteTrack);
             await client.subscribe(remoteUserId, remoteTrack);
-            if (remoteTrack.isVideo()) {
+            if (remoteTrack.kind === "video") {
                 remoteTrack.play(`video-${remoteUserId}`);
             }
-            if (remoteTrack.isAudio()) {
+            if (remoteTrack.kind === "audio") {
                 remoteTrack.play("audios");
             }
         });
@@ -247,7 +247,7 @@
                 audio: false
             });
 
-            videoTrack.setMediaStreamTrack(stream.getVideoTracks()[0]);
+            videoTrack.replace(stream.getVideoTracks()[0]);
         });
 
         window.addEventListener("offline", () => {
