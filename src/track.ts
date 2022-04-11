@@ -131,6 +131,9 @@ export abstract class LocalTrack extends JanusTrack {
         super();
         this.mediaStreamTrack = mediaStreamTrack;
         this.bitrate = config?.bitrate;
+        mediaStreamTrack.onended = () => {
+            this.emit("ended");
+        }
     }
 
     public setMuted(muted: boolean): void {
