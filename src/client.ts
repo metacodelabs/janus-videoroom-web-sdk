@@ -282,9 +282,9 @@ export class JanusClient extends JanusClientBase {
     }
 
     public async unpublish(): Promise<void> {
+        this.log.info(`unpublish`);
         await this.signal.unpublish();
-        this.publisherPc = undefined;
-        this.publishedTracks = [];
+        this.resetPublisherPc();
     }
 
     async subscribe(userId: JanusID, track: RemoteTrack): Promise<void> {
@@ -488,13 +488,7 @@ export class JanusClient extends JanusClientBase {
         });
         this.remoteUsers.clear();
 
-        if (this.publisherPc) {
-            this.publisherPc.oniceconnectionstatechange = null;
-            this.publisherPc.onicecandidate = null;
-            this.publisherPc.ontrack = null;
-            this.publisherPc.close();
-            this.publisherPc = undefined;
-        }
+        this.resetPublisherPc();
 
         if (this.subscriberPc) {
             this.subscriberPc.getTransceivers().forEach((t) => {
@@ -513,7 +507,6 @@ export class JanusClient extends JanusClientBase {
             this.subscriberPc = undefined;
         }
 
-        this.publishedTracks = [];
         this.innerEmitter.removeAllListeners();
         this.trackMap.clear();
         this.subscribeQueue = new PromiseQueue(1);
@@ -522,6 +515,20 @@ export class JanusClient extends JanusClientBase {
         this.isJoined = false;
         this.resetStats();
         this.forwardStreamIds = [];
+    }
+
+    private resetPublisherPc(): void {
+        if (!this.publisherPc) {
+            return ;
+        }
+
+        this.publisherPc.oniceconnectionstatechange = null;
+        this.publisherPc.onicecandidate = null;
+        this.publisherPc.ontrack = null;
+        this.publisherPc.close();
+        this.publisherPc = undefined;
+
+        this.publishedTracks = [];
     }
 
     public getSessionId(): number {

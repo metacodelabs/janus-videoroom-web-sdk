@@ -92,7 +92,12 @@ export default class WebrtcStats extends (EventEmitter as new () => TypedEventEm
                     sendBitrate = ((outbound?.bytesSent ?? 0) - prevStats.sendBytes) * 8 / td;
                     const totalPacketsSend = (outbound?.packetsSent ?? 0) - prevStats.sendPackets;
                     const totalPacketsLost = (inbound?.packetsLost ?? 0) - prevStats.sendPacketsLost;
-                    sendPacketsLostRate = 100 * totalPacketsLost / (totalPacketsSend + totalPacketsLost) / td;
+
+                    if (totalPacketsSend <= 0 || (totalPacketsSend + totalPacketsLost <= 0)) {
+                        sendPacketsLostRate = 0;
+                    } else {
+                        sendPacketsLostRate = 100 * totalPacketsLost / (totalPacketsSend + totalPacketsLost) / td;
+                    }
                 }
 
                 const stats = {
@@ -105,9 +110,9 @@ export default class WebrtcStats extends (EventEmitter as new () => TypedEventEm
                     encodeFrameWidth: outbound?.frameWidth ?? 0,
                     encodeFrameHeight: outbound?.frameHeight ?? 0,
                     sendFrames: outbound?.framesSent ?? 0,
-                    sendFrameRate: sendFrameRate,
+                    sendFrameRate: sendFrameRate > 0 ? sendFrameRate : 0,
                     sendBytes: outbound?.bytesSent ?? 0,
-                    sendBitrate: sendBitrate,
+                    sendBitrate: sendBitrate > 0 ? sendBitrate : 0,
                     sendPackets: outbound?.packetsSent ?? 0,
                     sendPacketsLost: inbound?.packetsLost ?? 0,
                     sendPacketsLostRate: sendPacketsLostRate,
@@ -128,14 +133,18 @@ export default class WebrtcStats extends (EventEmitter as new () => TypedEventEm
 
                     const totalPacketsSend = (outbound?.packetsSent ?? 0) - prevStats.sendPackets;
                     const totalPacketsLost = (inbound?.packetsLost ?? 0) - prevStats.sendPacketsLost;
-                    sendPacketsLostRate = 100 * totalPacketsLost / (totalPacketsSend + totalPacketsLost) / td;
+                    if (totalPacketsSend <= 0 || (totalPacketsSend + totalPacketsLost <= 0)) {
+                        sendPacketsLostRate = 0;
+                    } else {
+                        sendPacketsLostRate = 100 * totalPacketsLost / (totalPacketsSend + totalPacketsLost) / td;
+                    }
                 }
 
                 const stats = {
                     id: source.trackIdentifier,
                     timestamp: source.timestamp,
                     sendBytes: outbound?.bytesSent ?? 0,
-                    sendBitrate: sendBitrate,
+                    sendBitrate: sendBitrate > 0 ? sendBitrate : 0,
                     sendPackets: outbound?.packetsSent ?? 0,
                     sendPacketsLost: inbound?.packetsLost ?? 0,
                     sendPacketsLostRate: sendPacketsLostRate,

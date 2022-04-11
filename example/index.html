@@ -45,6 +45,10 @@
     </select>
     <button id="join">Join</button>
     |
+    <button id="publish">Publish</button>
+    |
+    <button id="unpublish">Unpublish</button>
+    |
     <button id="startForward">Start Forward</button>
     |
     <button id="stopForward">Stop Forward</button>
@@ -147,6 +151,21 @@
                 userId: parseInt(document.getElementById("users").value)
             }
 
+            await client.connect(config.server, config.token, config.adminKey);
+
+            const exists = await client.exists(config.roomId);
+            if (!exists) {
+                await client.create(config.roomId);
+            }
+
+            await client.join(config.roomId, config.userId);
+        }
+
+        const publish = async () => {
+            const config = {
+                userId: parseInt(document.getElementById("users").value)
+            }
+
             const stream = await navigator.mediaDevices.getUserMedia({
                 video: {
                     width: {ideal: 480},
@@ -170,33 +189,30 @@
 
             videoTrack.play(`video-${config.userId}`);
 
-            await client.connect(config.server, config.token, config.adminKey);
-
-            const exists = await client.exists(config.roomId);
-            if (!exists) {
-                await client.create(config.roomId);
-            }
-
-            await client.join(config.roomId, config.userId);
-
             await client.publish([videoTrack, audioTrack]);
         }
 
+        const unpublish = async () => {
+            await client.unpublish();
+            videoTrack?.stop();
+            videoTrack = undefined;
+            audioTrack?.stop();
+            audioTrack = undefined;
+        }
+
         const leave = async () => {
-            if (videoTrack) {
-                videoTrack.stop();
-                videoTrack = undefined;
-            }
-
-            if (audioTrack) {
-                audioTrack.stop();
-                audioTrack = undefined;
-            }
-
             await client.leave();
+
+            videoTrack?.stop();
+            videoTrack = undefined;
+            audioTrack?.stop();
+            audioTrack = undefined;
         }
 
         document.getElementById("join").addEventListener("click", join);
+        document.getElementById("publish").addEventListener("click", publish);
+        document.getElementById("unpublish").addEventListener("click", unpublish);
+
         document.getElementById("leave").addEventListener("click", leave);
 
         document.getElementById("muteAudio").addEventListener("click", () => {
@@ -231,8 +247,6 @@
         document.getElementById("switchCamera").addEventListener("click", async () => {
             const devices = await navigator.mediaDevices.enumerateDevices();
             const cameras = devices.filter(device => device.kind === "videoinput");
-
-            console.log("cameras", cameras);
 
             const cameraId = cameraFront ? cameras[cameras.length -1].deviceId : cameras[0].deviceId;
             cameraFront = !cameraFront;
