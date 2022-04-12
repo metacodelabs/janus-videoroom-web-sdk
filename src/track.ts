@@ -167,6 +167,11 @@ export abstract class LocalTrack extends JanusTrack {
         }
 
         this.emit("replace-track", newTrack, oldTrack);
+
+        oldTrack.onended = null;
+        oldTrack.onmute = null;
+        oldTrack.onunmute = null;
+        oldTrack.stop();
     }
 }
 
@@ -210,6 +215,10 @@ export class RemoteVideoTrack extends RemoteTrack {
         super(mid, codec);
     }
 
+    get kind(): "audio" | "video" {
+        return "video";
+    }
+
     public setMediaStreamTrack(track: MediaStreamTrack): void {
         if (track.kind !== "video") {
             throw new Error("media stream track kind is not video.");
@@ -223,6 +232,10 @@ export class RemoteAudioTrack extends RemoteTrack {
 
     constructor(mid: string, codec: string) {
         super(mid, codec);
+    }
+
+    get kind(): "audio" | "video" {
+        return "audio";
     }
 
     public setMediaStreamTrack(track: MediaStreamTrack): void {

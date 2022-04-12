@@ -113,7 +113,7 @@
         const client = JanusSDK.createClient({codec: "h264"});
 
         client.on("user-published", async (remoteUserId, remoteTrack) => {
-            console.log("(example) on user-published event", remoteUserId, remoteTrack);
+            console.log("(example) on user-published event", remoteUserId, remoteTrack.kind, remoteTrack);
             await client.subscribe(remoteUserId, remoteTrack);
             if (remoteTrack.kind === "video") {
                 remoteTrack.play(`video-${remoteUserId}`);
