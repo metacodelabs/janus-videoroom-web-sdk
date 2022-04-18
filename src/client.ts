@@ -409,7 +409,7 @@ export class JanusClient extends JanusClientBase {
         return this.publisherStats ? this.publisherStats.getLocalAudioTrackStats() : undefined;
     }
 
-    public getKLocalVideoTrackStats(): LocalVideoTrackStats | undefined {
+    public getLocalVideoTrackStats(): LocalVideoTrackStats | undefined {
         return this.publisherStats ? this.publisherStats.getLocalVideoTrackStats() : undefined;
     }
 
