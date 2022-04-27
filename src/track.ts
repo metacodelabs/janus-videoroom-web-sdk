@@ -167,11 +167,6 @@ export abstract class LocalTrack extends JanusTrack {
         }
 
         this.emit("replace-track", newTrack, oldTrack);
-
-        oldTrack.onended = null;
-        oldTrack.onmute = null;
-        oldTrack.onunmute = null;
-        oldTrack.stop();
     }
 }
 
