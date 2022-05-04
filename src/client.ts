@@ -276,7 +276,7 @@ export class JanusClient extends JanusClientBase {
         this.publisherStats.on("stats", report => {
             this.emit("stats", report);
         });
-        setInterval(() => {
+        this.networkQualityTimer = setInterval(() => {
             this.emit("network-quality", this.getNetworkQuality());
         }, 2000);
     }
