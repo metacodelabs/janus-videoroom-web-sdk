@@ -1,3 +1,4 @@
+import { Logger } from "ts-log";
 import {JanusClient, ClientConfig} from "./client";
 import {LocalVideoTrack, LocalAudioTrack, LocalTrackConfig} from "./track";
 
@@ -5,8 +6,14 @@ export type JanusID = string | number;
 
 export default class JanusSDK {
 
+    private static logger: Logger = console;
+
+    public static setLogger(logger: Logger): void {
+        JanusSDK.logger = logger;
+    }
+
     public static createClient(config: ClientConfig): JanusClient {
-        return new JanusClient(config);
+        return new JanusClient(config, JanusSDK.logger);
     }
 
     public static createLocalVideoTrack(track: MediaStreamTrack, config: LocalTrackConfig): LocalVideoTrack {
