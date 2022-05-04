@@ -1,6 +1,6 @@
 {
     "name": "@metacodelabs/janus-videoroom-web-sdk",
-    "version": "0.1.17",
+    "version": "0.1.18",
     "main": "dist/janus-videoroom-web-sdk.js",
     "types": "dist/janus-videoroom-web-sdk.d.ts",
     "source": "src/index.ts",

@@ -583,7 +583,7 @@ export default class SignalClient {
         }
     }
 
-    private async request(params: any, handleType?: HandleType, ignoreAck = false, timeoutMs = 6000): Promise<any> {
+    private async request(params: any, handleType?: HandleType, ignoreAck = false, timeoutMs = 10000): Promise<any> {
         const tid = randomString(12);
         if (ignoreAck) {
             this.ignoreAckRequests.set(tid, true);

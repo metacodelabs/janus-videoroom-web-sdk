@@ -66,7 +66,7 @@ export class JanusClient extends JanusClientBase {
         this.reconnectAttempts = 0;
         this.reconnectStart = 0;
         this._connectionState = "DISCONNECTED";
-        this.signal = new SignalClient();
+        this.signal = new SignalClient(log);
         this.registerSignalHandler();
         this.forwardStreamIds = [];
 
