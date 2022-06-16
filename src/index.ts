@@ -40,6 +40,8 @@ export type {
     RemoteVideoTrack,
 } from "./track";
 
+export {default as WebrtcStats} from "./stats";
+
 export type {
     LocalAudioTrackStats,
     LocalVideoTrackStats,
