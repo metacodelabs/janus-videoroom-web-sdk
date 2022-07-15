@@ -179,8 +179,14 @@ export default class SignalClient {
                 return ;
             }
 
-            const request = { janus: "keepalive" };
-            await this.request(request);
+            try {
+                const request = { janus: "keepalive" };
+                await this.request(request);
+                this.log.debug("janus pong");
+            } catch (e: unknown) {
+                const reason = e instanceof Error ? e.message : `${e}`;
+                this.log.error(`janus keepalive failed (${reason})`);
+            }
 
         }, this.KEEP_ALIVE_PERIOD);
     }
