@@ -10,8 +10,8 @@ import {ErrorCode, JanusError} from "./errors";
 import WebrtcStats, {LocalAudioTrackStats, LocalVideoTrackStats, NetworkQuality, StatsResult} from "./stats";
 import * as sdpTransform from 'sdp-transform';
 
-const maxReconnectRetries = 10;
-const maxReconnectDuration = 60 * 1000;
+const maxReconnectRetries = 3;
+const maxReconnectDuration = 30 * 1000;
 
 export const JanusClientBase = EventEmitter as new () => TypedEventEmitter<JanusClientCallbacks>;
 
