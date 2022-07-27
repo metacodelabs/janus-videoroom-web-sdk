@@ -144,7 +144,7 @@ export abstract class LocalTrack extends JanusTrack {
         this.mediaStreamTrack.enabled = !muted;
     }
 
-    public replace(newTrack: MediaStreamTrack) {
+    public replace(newTrack: MediaStreamTrack): Promise<void> {
         if (!this.mediaStreamTrack) {
             throw new JanusError(ErrorCode.INVALID_OPERATION, "set new media stream track failed, old track does not exist.");
         }
@@ -167,6 +167,8 @@ export abstract class LocalTrack extends JanusTrack {
         }
 
         this.emit("replace-track", newTrack, oldTrack);
+
+        return Promise.resolve();
     }
 }
 
